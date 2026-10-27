@@ -48,11 +48,10 @@ jobs:
 
       - run: flutter pub get
 
-      - name: Nâng cấp compileSdk lên 36 cho Android
+      - name: Ép compileSdk lên 36
         run: |
-          # Tự động tìm và đổi compileSdk sang 36 trong file build.gradle vừa được sinh ra
-          find android -name "build.gradle" -exec sed -i 's/compileSdk.*/compileSdk 36/g' {} +
-          find android -name "build.gradle" -exec sed -i 's/compileSdkVersion.*/compileSdkVersion 36/g' {} +
+          sed -i 's/compileSdk .*/compileSdk 36/g' android/app/build.gradle
+          sed -i 's/compileSdkVersion .*/compileSdkVersion 36/g' android/app/build.gradle
 
       - name: Build APK
         run: >
