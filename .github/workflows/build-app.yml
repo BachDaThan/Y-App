@@ -48,6 +48,22 @@ jobs:
 
       - run: flutter pub get
 
+      # Plugin cũ (vd file_picker 8.x) biên dịch với Android API 34 nhưng thư viện lifecycle của Flutter đòi API >= 36
+      # -> Gradle báo "checkReleaseAarMetadata". Init script này ép MỌI module dùng compileSdk 36, không cần sửa file Gradle trong repo.
+      - name: Ép compileSdk 36 cho mọi plugin
+        run: |
+          mkdir -p "$HOME/.gradle/init.d"
+          cat > "$HOME/.gradle/init.d/compile-sdk.gradle" <<'EOF'
+          allprojects {
+            afterEvaluate { p ->
+              if (p.hasProperty('android')) {
+                p.android.compileSdk = 36
+              }
+            }
+          }
+          EOF
+          cat "$HOME/.gradle/init.d/compile-sdk.gradle"
+
       - name: Build APK
         run: >
           flutter build apk --release --target-platform android-arm64
