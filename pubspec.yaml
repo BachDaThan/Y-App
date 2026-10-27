@@ -1,0 +1,19 @@
+name: yui_app
+description: Yui - chat AI offline chạy bằng engine C++ riêng (Adaptive-MoE), quản lý nhiều model .yui
+publish_to: 'none'
+version: 1.0.0+1
+
+environment:
+  sdk: '>=3.3.0 <4.0.0'
+
+dependencies:
+  flutter:
+    sdk: flutter
+  ffi: ^2.1.3
+  path_provider: ^2.1.4
+  shared_preferences: ^2.3.2
+  file_picker: ^8.1.2
+  url_launcher: ^6.3.0
+
+flutter:
+  uses-material-design: true

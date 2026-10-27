@@ -1,0 +1,20 @@
+# android/ và windows/ do workflow tự sinh bằng `flutter create`, không commit
+android/
+windows/
+ios/
+macos/
+linux/
+web/
+build/
+.dart_tool/
+.flutter-plugins*
+.packages
+pubspec.lock
+.metadata
+test/
+analysis_options.yaml
+*.jks
+*.keystore
+libyui.so
+yui.dll
+dist/
