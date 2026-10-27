@@ -48,11 +48,6 @@ jobs:
 
       - run: flutter pub get
 
-      - name: Ép compileSdk lên 36
-        run: |
-          sed -i 's/compileSdk .*/compileSdk 36/g' android/app/build.gradle
-          sed -i 's/compileSdkVersion .*/compileSdkVersion 36/g' android/app/build.gradle
-
       - name: Build APK
         run: >
           flutter build apk --release --target-platform android-arm64
