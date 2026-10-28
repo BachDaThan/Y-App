@@ -33,5 +33,7 @@ Xuất model bằng `export_yui.py` (xem repo Adaptive-MoE) ra file `.yui`, rồ
 - Model nạp bằng `mmap` trên Android: mở gần như tức thì và không nhân đôi RAM. Windows mặc định đọc vào RAM (để còn đổi tên/xoá file model được).
 - Không có `-march=native`/`/arch:AVX2` trong workflow nữa nên một bản cài chạy được trên mọi máy cùng kiến trúc.
 
+- Hỗ trợ file `.yui` v2 (4-bit, `export_yui.py --quant q4`): nhỏ hơn, nhanh hơn trên điện thoại; tab Model nhập như file thường.
+
 ## Lưu ý
 Code Dart và workflow CHƯA được build thử (người viết không có Flutter SDK); engine C++ đã kiểm tra riêng. Nếu Actions báo lỗi, dán log để sửa.
