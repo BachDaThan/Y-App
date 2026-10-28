@@ -27,5 +27,11 @@ Xuất model bằng `export_yui.py` (xem repo Adaptive-MoE) ra file `.yui`, rồ
 - `lib/engine.dart` FFI + isolate nền · `lib/state.dart` trạng thái, model, lịch sử, cập nhật · `lib/screens/*` giao diện
 - `.github/workflows/build-app.yml`, `installer/yui.iss`
 
+## Hiệu năng (engine v1.1)
+- Kernel int8×int8 SIMD chọn lúc chạy (AVX2+FMA trên PC, NEON hoặc NEON+dotprod trên điện thoại ARM64), kích hoạt lượng tử theo khối 32 như llama.cpp. File `.yui` cũ dùng được luôn, KHÔNG cần xuất lại.
+- Nhóm luồng riêng (không cần OpenMP): lớp head và các expert chạy song song. Cài đặt → **Số luồng CPU** (0 = tự chọn; điện thoại mặc định tối đa 4 luồng vì lõi nhỏ thường làm chậm).
+- Model nạp bằng `mmap` trên Android: mở gần như tức thì và không nhân đôi RAM. Windows mặc định đọc vào RAM (để còn đổi tên/xoá file model được).
+- Không có `-march=native`/`/arch:AVX2` trong workflow nữa nên một bản cài chạy được trên mọi máy cùng kiến trúc.
+
 ## Lưu ý
 Code Dart và workflow CHƯA được build thử (người viết không có Flutter SDK); engine C++ đã kiểm tra riêng. Nếu Actions báo lỗi, dán log để sửa.
