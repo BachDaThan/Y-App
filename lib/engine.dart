@@ -155,6 +155,12 @@ class YuiEngine {
     return GenSession(id, ctl.stream, () => _tx?.send(['cancel', id]));
   }
 
+  /// Chọn số luồng CPU cho engine (0 = tự chọn). Trả về mô tả CPU, vd "neon+dotprod, 4 thread".
+  Future<String> setThreads(int n) async {
+    final m = await _call((id) => ['threads', id, n]);
+    return m[2] as String;
+  }
+
   void dispose() {
     _isolate?.kill(priority: Isolate.immediate);
     _rx?.close();
@@ -173,6 +179,10 @@ typedef _BeginN = Pointer<Void> Function(Pointer<Void>, Pointer<Utf8>, Pointer<U
 typedef _BeginD = Pointer<Void> Function(Pointer<Void>, Pointer<Utf8>, Pointer<Utf8>, int, Pointer<Utf8>, int);
 typedef _NextN = Int32 Function(Pointer<Void>, Pointer<Utf8>, Int32);
 typedef _NextD = int Function(Pointer<Void>, Pointer<Utf8>, int);
+typedef _ThreadsN = Void Function(Int32);
+typedef _ThreadsD = void Function(int);
+typedef _FeatN = Int32 Function(Pointer<Utf8>, Int32);
+typedef _FeatD = int Function(Pointer<Utf8>, int);
 typedef _TokN = Int32 Function(Pointer<Void>);
 typedef _TokD = int Function(Pointer<Void>);
 
@@ -186,6 +196,8 @@ class _Native {
   late final _NextD next = lib.lookupFunction<_NextN, _NextD>('yui_gen_next');
   late final _TokD tokens = lib.lookupFunction<_TokN, _TokD>('yui_gen_tokens');
   late final _FreeD end = lib.lookupFunction<_FreeN, _FreeD>('yui_gen_end');
+  late final _ThreadsD setThreads = lib.lookupFunction<_ThreadsN, _ThreadsD>('yui_set_threads');
+  late final _FeatD features = lib.lookupFunction<_FeatN, _FeatD>('yui_cpu_features');
 
   _Native(this.lib);
 
@@ -237,6 +249,22 @@ class _Worker {
       case 'cancel':
         _cancelled.add(m[1] as int);
         break;
+      case 'threads':
+        _threads(m[1] as int, m[2] as int);
+        break;
+    }
+  }
+
+  void _threads(int id, int count) {
+    try {
+      n.setThreads(count);
+      final buf = calloc<Uint8>(128);
+      final k = n.features(buf.cast<Utf8>(), 128);
+      final info = k > 0 ? buf.cast<Utf8>().toDartString() : '';
+      calloc.free(buf);
+      out.send([id, 'ok', info]);
+    } catch (e) {
+      out.send([id, 'error', '$e']);
     }
   }
 

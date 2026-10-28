@@ -262,6 +262,7 @@ class Settings extends ChangeNotifier {
   int k = 2;
   int maxNew = 120;
   int contextTurns = 4;
+  int threads = 0; // số luồng CPU cho engine, 0 = tự chọn
   String activeModel = '';
   int lastUpdateCheck = 0;
 
@@ -278,6 +279,7 @@ class Settings extends ChangeNotifier {
     s.k = p.getInt('k') ?? 2;
     s.maxNew = p.getInt('maxNew') ?? 120;
     s.contextTurns = p.getInt('turns') ?? 4;
+    s.threads = p.getInt('threads') ?? 0;
     s.activeModel = p.getString('model') ?? '';
     s.lastUpdateCheck = p.getInt('upd') ?? 0;
     return s;
@@ -293,6 +295,7 @@ class Settings extends ChangeNotifier {
     await p.setInt('k', k);
     await p.setInt('maxNew', maxNew);
     await p.setInt('turns', contextTurns);
+    await p.setInt('threads', threads);
     await p.setString('model', activeModel);
     await p.setInt('upd', lastUpdateCheck);
     notifyListeners();
@@ -359,6 +362,9 @@ class AppState extends ChangeNotifier {
     modelError = null;
     notifyListeners();
     try {
+      try {
+        await engine.setThreads(settings.threads);
+      } catch (_) {}
       final info = await engine.load(entry.path);
       loadedModel = name;
       modelInfo = info;
