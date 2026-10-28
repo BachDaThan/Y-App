@@ -12,7 +12,7 @@ class SettingsScreen extends StatefulWidget {
 class _SettingsScreenState extends State<SettingsScreen> {
   Settings get s => app.settings;
 
-  Widget _slider(String label, String shown, double value, double min, double max, int? div, void Function(double) onChanged) {
+  Widget _slider(String label, String shown, double value, double min, double max, int? div, void Function(double) onChanged, {VoidCallback? after}) {
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 2),
       child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
@@ -23,7 +23,10 @@ class _SettingsScreenState extends State<SettingsScreen> {
           max: max,
           divisions: div,
           onChanged: (v) => setState(() => onChanged(v)),
-          onChangeEnd: (_) => s.save(),
+          onChangeEnd: (_) {
+            s.save();
+            after?.call();
+          },
         ),
       ]),
     );
@@ -121,6 +124,8 @@ class _SettingsScreenState extends State<SettingsScreen> {
         _slider('Độ dài trả lời tối đa (token)', '${s.maxNew}', s.maxNew.toDouble(), 20, 400, 38, (v) => s.maxNew = v.round()),
         _slider('Số lượt chat gần nhất Yui nhớ', '${s.contextTurns}', s.contextTurns.toDouble(), 1, 8, 7,
             (v) => s.contextTurns = v.round()),
+        _slider('Số luồng CPU (0 = tự chọn)', s.threads == 0 ? 'tự chọn' : '${s.threads}', s.threads.toDouble(), 0, 8, 8,
+            (v) => s.threads = v.round(), after: () => app.engine.setThreads(s.threads)),
         const Padding(
           padding: EdgeInsets.fromLTRB(16, 0, 16, 8),
           child: Text('Model chỉ nhìn được tối đa vài chục từ gần nhất (ngữ cảnh 128 token), nên nhớ nhiều lượt hơn chưa chắc tốt hơn.',
