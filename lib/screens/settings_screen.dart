@@ -126,6 +126,15 @@ class _SettingsScreenState extends State<SettingsScreen> {
             (v) => s.contextTurns = v.round()),
         _slider('Số luồng CPU (0 = tự chọn)', s.threads == 0 ? 'tự chọn' : '${s.threads}', s.threads.toDouble(), 0, 8, 8,
             (v) => s.threads = v.round(), after: () => app.engine.setThreads(s.threads)),
+        SwitchListTile(
+          title: const Text('Cho Yui dùng công cụ'),
+          subtitle: const Text('Tính toán, xem giờ, tra cứu Wikipedia (cần mạng). Chỉ có tác dụng với model đã được dạy dùng công cụ.'),
+          value: s.useTools,
+          onChanged: (v) {
+            setState(() => s.useTools = v);
+            s.save();
+          },
+        ),
         const Padding(
           padding: EdgeInsets.fromLTRB(16, 0, 16, 8),
           child: Text('Model chỉ nhìn được tối đa vài chục từ gần nhất (ngữ cảnh 128 token), nên nhớ nhiều lượt hơn chưa chắc tốt hơn.',
