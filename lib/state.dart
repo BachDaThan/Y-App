@@ -7,6 +7,7 @@ import 'package:flutter/material.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
+import 'agent.dart';
 import 'engine.dart';
 
 /// Phiên bản app, CI truyền vào bằng --dart-define=APP_VERSION=1.0.N
@@ -263,6 +264,7 @@ class Settings extends ChangeNotifier {
   int maxNew = 120;
   int contextTurns = 4;
   int threads = 0; // số luồng CPU cho engine, 0 = tự chọn
+  bool useTools = true; // cho model dùng công cụ calc/time/search (chỉ có tác dụng với model đã học cú pháp <tool>)
   String activeModel = '';
   int lastUpdateCheck = 0;
 
@@ -280,6 +282,7 @@ class Settings extends ChangeNotifier {
     s.maxNew = p.getInt('maxNew') ?? 120;
     s.contextTurns = p.getInt('turns') ?? 4;
     s.threads = p.getInt('threads') ?? 0;
+    s.useTools = p.getBool('tools') ?? true;
     s.activeModel = p.getString('model') ?? '';
     s.lastUpdateCheck = p.getInt('upd') ?? 0;
     return s;
@@ -296,6 +299,7 @@ class Settings extends ChangeNotifier {
     await p.setInt('maxNew', maxNew);
     await p.setInt('turns', contextTurns);
     await p.setInt('threads', threads);
+    await p.setBool('tools', useTools);
     await p.setString('model', activeModel);
     await p.setInt('upd', lastUpdateCheck);
     notifyListeners();
@@ -503,29 +507,60 @@ class AppState extends ChangeNotifier {
     final before = chat.messages.sublist(0, chat.messages.length - 1);
     final take = settings.contextTurns * 2 + 1;
     final tail = before.length > take ? before.sublist(before.length - take) : before;
-    final sess = engine.chat([
+    final msgs = <Map<String, String>>[
       for (final m in tail) {'role': m.role, 'content': m.content}
-    ], settings.options);
-    _sess = sess;
+    ];
+    final useTools = settings.useTools;
+    var totalTokens = 0;
+    var totalMillis = 0;
     var lastNotify = 0;
     var cancelled = false;
-    await for (final ev in sess.events) {
-      if (ev is GenChunk) {
-        bot.content += ev.text;
-        final now = _nowMs();
-        if (now - lastNotify > 40) {
-          lastNotify = now;
-          notifyListeners();
+    // Vòng lặp công cụ (giống yui_agent.py): model viết <tool>tên đối_số</tool> -> app chạy -> trả lại lượt user <result>...</result> -> model viết tiếp.
+    for (var step = 0; step <= AgentTools.maxSteps; step++) {
+      final sess = engine.chat(msgs, settings.options);
+      _sess = sess;
+      var buf = '';
+      var errored = false;
+      await for (final ev in sess.events) {
+        if (ev is GenChunk) {
+          buf += ev.text;
+          bot.content = useTools ? AgentTools.visible(buf) : buf;
+          final now = _nowMs();
+          if (now - lastNotify > 40) {
+            lastNotify = now;
+            notifyListeners();
+          }
+        } else if (ev is GenDone) {
+          cancelled = ev.cancelled;
+          totalTokens += ev.tokens;
+          totalMillis += ev.millis;
+        } else if (ev is GenError) {
+          errored = true;
+          buf += '${buf.isEmpty ? '' : '\n'}⚠ ${ev.message}';
+          bot.content = buf;
         }
-      } else if (ev is GenDone) {
-        cancelled = ev.cancelled;
-        final tps = ev.millis > 0 ? ev.tokens * 1000 / ev.millis : 0;
-        lastStats = '${ev.tokens} token · ${tps.toStringAsFixed(1)}/s';
-      } else if (ev is GenError) {
-        bot.content += '${bot.content.isEmpty ? '' : '\n'}⚠ ${ev.message}';
       }
+      _sess = null;
+      if (!useTools || cancelled || errored) {
+        bot.content = (useTools && !errored) ? AgentTools.stripToolTags(buf) : buf;
+        break;
+      }
+      final call = step < AgentTools.maxSteps ? AgentTools.parseCall(buf) : null;
+      if (call == null) {
+        final clean = AgentTools.stripToolTags(buf);
+        bot.content = clean.isNotEmpty ? clean : (buf.trim().isEmpty ? '' : AgentTools.fallback);
+        break;
+      }
+      bot.content = '🔧 ${call.name} ${call.arg}'.trim();
+      notifyListeners();
+      final res = await AgentTools.run(call.name, call.arg);
+      msgs.add({'role': 'assistant', 'content': '<tool>${call.name} ${call.arg}</tool>'.replaceAll(' </tool>', '</tool>')});
+      msgs.add({'role': 'user', 'content': '<result>$res</result>'});
     }
-    _sess = null;
+    if (totalMillis > 0 || totalTokens > 0) {
+      final tps = totalMillis > 0 ? totalTokens * 1000 / totalMillis : 0;
+      lastStats = '$totalTokens token · ${tps.toStringAsFixed(1)}/s';
+    }
     generating = false;
     if (bot.content.trim().isEmpty) {
       if (cancelled) {
