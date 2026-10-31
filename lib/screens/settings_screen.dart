@@ -1,7 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:url_launcher/url_launcher.dart';
 
+import '../services/background_guard.dart';
 import '../state.dart';
+import '../widgets/legal_gate.dart';
 
 class SettingsScreen extends StatefulWidget {
   const SettingsScreen({super.key});
@@ -142,6 +144,26 @@ class _SettingsScreenState extends State<SettingsScreen> {
         ),
         _section('Ứng dụng'),
         ListTile(leading: const Icon(Icons.info_outline), title: const Text('Phiên bản'), subtitle: Text(kAppVersion)),
+        SwitchListTile(
+          secondary: const Icon(Icons.work_history_outlined),
+          title: const Text('Chạy ngầm khi thoát app'),
+          subtitle: const Text('Yui vẫn làm việc khi bạn ra màn hình chính, có thông báo kèm nút Dừng'),
+          value: BackgroundGuard.enabled,
+          onChanged: (v) async {
+            await BackgroundGuard.setEnabled(v);
+            if (mounted) setState(() {});
+          },
+        ),
+        ListTile(
+          leading: const Icon(Icons.article_outlined),
+          title: const Text('Giấy phép mã nguồn mở'),
+          onTap: () => showLicensePage(context: context, applicationName: 'Yui', applicationVersion: kAppVersion),
+        ),
+        ListTile(
+          leading: const Icon(Icons.gavel_outlined),
+          title: const Text('Điều khoản & quyền riêng tư'),
+          onTap: () => Navigator.of(context).push(MaterialPageRoute<void>(builder: (_) => const LegalScreen())),
+        ),
         ListTile(
           leading: const Icon(Icons.system_update_alt),
           title: const Text('Kiểm tra cập nhật'),
