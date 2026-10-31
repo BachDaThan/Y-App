@@ -52,4 +52,4 @@ These Terms are governed by the laws of Vietnam, without removing mandatory cons
 For material changes the App will ask you to accept again. Continuing to use the App after accepting means you accept the new version.
 
 ## 16. Contact
-[truongtieuthan@gmail.com] · [VietNam]
+[truongtieuthan@gmail.com] · [ https://github.com/BachDaThan/Y-App]
