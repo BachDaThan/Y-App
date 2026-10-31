@@ -14,6 +14,15 @@ dependencies:
   shared_preferences: ^2.3.2
   file_picker: ^8.1.2
   url_launcher: ^6.3.0
+  # Cập nhật ngầm, chạy nền có nút Dừng, thông báo (ghim phiên bản đã biết API; nâng cấp cần xem lại services/background_guard.dart)
+  flutter_foreground_task: 8.17.0
+  flutter_local_notifications: 18.0.1
+  open_filex: ^4.5.0
 
 flutter:
   uses-material-design: true
+  assets:
+    - assets/legal/
+    - assets/brand/yui_icon_1024.png
+    - assets/brand/logo_horizontal_dark.png
+    - assets/brand/logo_horizontal_light.png
