@@ -58,4 +58,4 @@ Bạn có thể ngừng dùng và gỡ Ứng dụng bất cứ lúc nào. Nhà p
 Khi có thay đổi quan trọng, Ứng dụng sẽ hiện lại điều khoản để bạn đồng ý lại. Tiếp tục dùng sau khi đồng ý nghĩa là chấp nhận bản mới.
 
 ## 16. Liên hệ
-[truongtieuthan@gmail.com] · [Việt Nam]
+[truongtieuthan@gmail.com] · [ https://github.com/BachDaThan/Y-App]
