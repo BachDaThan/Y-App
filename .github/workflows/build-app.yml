@@ -35,7 +35,7 @@ jobs:
             -Wl,-z,max-page-size=16384 native/yui.cpp -o libyui.so
           ls -la libyui.so
 
-# Giống app Kính: thư mục android/ không nằm trong repo, workflow tự sinh bằng flutter create để khỏi lệch phiên bản Gradle/AGP/Kotlin
+# Giống app Kính: thư mục android/ không nằm trong repo, workflow tự sinh bằng flutter create
       - name: Sinh thư mục android/ và gắn libyui.so
         run: |
           flutter create --platforms=android --org com.bachdathan --project-name yui_app .
@@ -46,66 +46,59 @@ jobs:
           cp libyui.so android/app/src/main/jniLibs/arm64-v8a/
           grep -n "INTERNET\|android:label" "$MANIFEST"
 
-      # === FIX: flutter_local_notifications yêu cầu core library desugaring ===
+      # FIX: flutter_local_notifications yêu cầu core library desugaring
       - name: Bật core library desugaring (cho flutter_local_notifications)
         run: |
           python3 - <<'PY'
           from pathlib import Path
 
-          p = Path("android/app/build.gradle")
+          # Tìm file build script
+          p = Path("android/app/build.gradle.kts")
           if not p.exists():
-              # Một số bản Flutter tạo .kts
-              p = Path("android/app/build.gradle.kts")
+              p = Path("android/app/build.gradle")
+
+          if not p.exists():
+              raise SystemExit("Không tìm thấy android/app/build.gradle(.kts)")
 
           text = p.read_text(encoding="utf-8")
-          original = text
+          is_kts = p.suffix == ".kts"
 
-          # --- 1. Bật coreLibraryDesugaringEnabled trong compileOptions ---
+          # 1. Bật flag desugaring
           if "coreLibraryDesugaringEnabled" not in text and "isCoreLibraryDesugaringEnabled" not in text:
-              if "compileOptions {" in text:
-                  # Groovy
-                  text = text.replace(
-                      "compileOptions {",
-                      "compileOptions {\n        coreLibraryDesugaringEnabled true"
-                  )
-              elif "compileOptions {" in text.replace(" ", ""):
-                  pass
-              else:
+              if is_kts:
                   # Kotlin DSL
                   text = text.replace(
                       "compileOptions {",
                       "compileOptions {\n        isCoreLibraryDesugaringEnabled = true"
                   )
-
-          # --- 2. Thêm dependency desugar_jdk_libs ---
-          dep_groovy = '    coreLibraryDesugaring "com.android.tools:desugar_jdk_libs:2.1.4"'
-          dep_kts    = '    coreLibraryDesugaring("com.android.tools:desugar_jdk_libs:2.1.4")'
-
-          if "desugar_jdk_libs" not in text:
-              if p.suffix == ".kts":
-                  dep = dep_kts
               else:
-                  dep = dep_groovy
+                  # Groovy
+                  text = text.replace(
+                      "compileOptions {",
+                      "compileOptions {\n        coreLibraryDesugaringEnabled true"
+                  )
+
+          # 2. Thêm dependency
+          if "desugar_jdk_libs" not in text:
+              if is_kts:
+                  dep = '    coreLibraryDesugaring("com.android.tools:desugar_jdk_libs:2.1.4")'
+              else:
+                  dep = '    coreLibraryDesugaring "com.android.tools:desugar_jdk_libs:2.1.4"'
 
               if "dependencies {" in text:
                   text = text.replace("dependencies {", "dependencies {\n" + dep, 1)
               else:
                   text += "\n\ndependencies {\n" + dep + "\n}\n"
 
-          if text == original:
-              print("WARNING: Không tìm thấy chỗ để patch. Nội dung hiện tại:")
-              print(text)
-          else:
-              p.write_text(text, encoding="utf-8")
-              print(f"Đã patch {p}")
-              print("--- Nội dung sau khi patch ---")
-              print(text)
+          p.write_text(text, encoding="utf-8")
+          print(f"Đã patch: {p}")
+          print("--- Nội dung sau khi patch ---")
+          print(text)
           PY
 
       - run: flutter pub get
 
-      # Plugin cũ (vd file_picker 8.x) biên dịch với Android API 34 nhưng thư viện lifecycle của Flutter đòi API >= 36
-      # -> Gradle báo "checkReleaseAarMetadata". Init script này ép MỌI module dùng compileSdk 36, không cần sửa file Gradle trong repo.
+      # Ép compileSdk 36 cho mọi plugin
       - name: Ép compileSdk 36 cho mọi plugin
         run: |
           mkdir -p "$HOME/.gradle/init.d"
@@ -121,12 +114,12 @@ jobs:
           cat "$HOME/.gradle/init.d/compile-sdk.gradle"
 
       - name: Build APK
-        run: >
-          flutter build apk --release
-          --target-platform android-arm64
-          --build-name=${{ env.APP_VERSION }}
-          --build-number=${{ github.run_number }}
-          --dart-define=APP_VERSION=${{ env.APP_VERSION }}
+        run: |
+          flutter build apk --release \
+            --target-platform android-arm64 \
+            --build-name=${{ env.APP_VERSION }} \
+            --build-number=${{ github.run_number }} \
+            --dart-define=APP_VERSION=${{ env.APP_VERSION }}
       # Muốn cài ĐÈ được thì mọi bản phải ký bằng CÙNG một khoá. Khoá nằm trong GitHub Secrets (xem README.md).
       - name: Ký APK bằng khoá riêng
         env:
