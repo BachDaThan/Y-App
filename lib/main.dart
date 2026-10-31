@@ -6,11 +6,16 @@ import 'screens/chat_screen.dart';
 import 'screens/history_screen.dart';
 import 'screens/models_screen.dart';
 import 'screens/settings_screen.dart';
+import 'services/background_guard.dart';
+import 'services/update_service.dart';
 import 'state.dart';
+import 'widgets/legal_gate.dart';
+import 'widgets/update_banner.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
   app = await AppState.create();
+  await BackgroundGuard.init();
   runApp(const YuiApp());
 }
 
@@ -33,7 +38,17 @@ class YuiApp extends StatelessWidget {
         themeMode: app.settings.themeMode,
         theme: _theme(Brightness.light),
         darkTheme: _theme(Brightness.dark),
-        home: const HomeShell(),
+        builder: (context, child) => ListenableBuilder(
+          listenable: updater,
+          builder: (context, _) {
+            final show = updater.state != UpdateState.idle;
+            return Column(children: [
+              if (show) const SafeArea(bottom: false, child: UpdateBanner()),
+              Expanded(child: show ? MediaQuery.removePadding(context: context, removeTop: true, child: child!) : child!),
+            ]);
+          },
+        ),
+        home: const LegalGate(child: HomeShell()),
       ),
     );
   }
@@ -69,13 +84,21 @@ class _HomeShellState extends State<HomeShell> {
             : u.notes),
         actions: [
           TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Để sau')),
-          FilledButton(
+          TextButton(
             onPressed: () {
               launchUrl(Uri.parse(u.url), mode: LaunchMode.externalApplication);
               Navigator.pop(ctx);
             },
             child: const Text('Mở trang tải'),
           ),
+          if (u.assetUrl != null)
+            FilledButton(
+              onPressed: () {
+                updater.start(u.assetUrl!, u.assetName ?? 'Yui-update', u.assetSize); // tải ngầm, có thanh tiến độ
+                Navigator.pop(ctx);
+              },
+              child: const Text('Tải ngầm'),
+            ),
         ],
       ),
     );

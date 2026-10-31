@@ -3,6 +3,9 @@ import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
 
+import 'services/background_guard.dart';
+import 'services/notifier.dart';
+import 'services/update_service.dart';
 import 'package:flutter/material.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -309,11 +312,21 @@ class Settings extends ChangeNotifier {
       temperature: temperature, topK: topK, topP: topP, repeatPenalty: repeatPenalty, k: k, maxNew: maxNew);
 }
 
+/// Rút gọn câu trả lời để làm nội dung thông báo (tối đa 120 ký tự, một dòng).
+String _preview(String text) {
+  final t = text.trim().replaceAll(RegExp(r'\s+'), ' ');
+  if (t.isEmpty) return 'Mở app để xem.';
+  return t.length <= 120 ? t : '${t.substring(0, 117)}…';
+}
+
 class UpdateInfo {
   final String version;
   final String url;
   final String notes;
-  UpdateInfo(this.version, this.url, this.notes);
+  final String? assetUrl; // file cài trực tiếp (APK / trình cài Windows) để tải ngầm; null = chỉ mở trang tải
+  final String? assetName;
+  final int assetSize;
+  UpdateInfo(this.version, this.url, this.notes, {this.assetUrl, this.assetName, this.assetSize = 0});
 }
 
 // ============================ AppState ============================
@@ -504,6 +517,8 @@ class AppState extends ChangeNotifier {
     generating = true;
     lastStats = null;
     notifyListeners();
+    BackgroundGuard.addStopHandler(stop); // nút "Dừng" trên thông báo nền = nút Dừng trong chat
+    unawaited(BackgroundGuard.begin('Yui đang trả lời…', 'Bấm Dừng để ngắt ngay'));
     final before = chat.messages.sublist(0, chat.messages.length - 1);
     final take = settings.contextTurns * 2 + 1;
     final tail = before.length > take ? before.sublist(before.length - take) : before;
@@ -562,6 +577,10 @@ class AppState extends ChangeNotifier {
       lastStats = '$totalTokens token · ${tps.toStringAsFixed(1)}/s';
     }
     generating = false;
+    unawaited(BackgroundGuard.end());
+    if (!cancelled && WidgetsBinding.instance.lifecycleState != AppLifecycleState.resumed) {
+      unawaited(Notifier.show(7003, 'Yui đã trả lời xong', _preview(bot.content)));
+    }
     if (bot.content.trim().isEmpty) {
       if (cancelled) {
         chat.messages.remove(bot);
@@ -641,8 +660,10 @@ class AppState extends ChangeNotifier {
       final j = jsonDecode(await res.transform(utf8.decoder).join()) as Map<String, dynamic>;
       final remote = _ver('${j['name'] ?? ''} ${j['tag_name'] ?? ''}');
       if (_cmp(remote, _ver(kAppVersion)) > 0) {
+        final asset = UpdateService.pickAsset((j['assets'] as List<dynamic>?) ?? const []);
         return UpdateInfo(remote.join('.'), (j['html_url'] as String?) ?? 'https://github.com/$kRepo/releases',
-            (j['body'] as String?) ?? '');
+            (j['body'] as String?) ?? '',
+            assetUrl: asset?.url, assetName: asset?.name, assetSize: asset?.size ?? 0);
       }
       return null;
     } catch (_) {
