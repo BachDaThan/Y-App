@@ -46,6 +46,35 @@ jobs:
           cp libyui.so android/app/src/main/jniLibs/arm64-v8a/
           grep -n "INTERNET\|android:label" "$MANIFEST"
 
+- name: Bật core library desugaring (cho flutter_local_notifications)
+        run: |
+          # Patch compileOptions
+          python3 - <<'PY'
+          from pathlib import Path
+          p = Path("android/app/build.gradle")
+          text = p.read_text()
+
+          # Bật coreLibraryDesugaringEnabled
+          if "coreLibraryDesugaringEnabled" not in text:
+              text = text.replace(
+                  "compileOptions {",
+                  "compileOptions {\n        coreLibraryDesugaringEnabled true"
+              )
+
+          # Thêm dependency
+          dep = '    coreLibraryDesugaring "com.android.tools:desugar_jdk_libs:2.1.4"'
+          if "desugar_jdk_libs" not in text:
+              if "dependencies {" in text:
+                  text = text.replace("dependencies {", "dependencies {\n" + dep)
+              else:
+                  text += "\n\ndependencies {\n" + dep + "\n}\n"
+
+          p.write_text(text)
+          print("Patched android/app/build.gradle")
+          print("---")
+          print(p.read_text())
+          PY
+
       - run: flutter pub get
 
       # Plugin cũ (vd file_picker 8.x) biên dịch với Android API 34 nhưng thư viện lifecycle của Flutter đòi API >= 36
