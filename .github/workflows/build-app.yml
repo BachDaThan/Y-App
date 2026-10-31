@@ -122,8 +122,10 @@ jobs:
 
       - name: Build APK
         run: >
-          flutter build apk --release --target-platform android-arm64
-          --build-name=\( {{ env.APP_VERSION }} --build-number= \){{ github.run_number }}
+          flutter build apk --release
+          --target-platform android-arm64
+          --build-name=${{ env.APP_VERSION }}
+          --build-number=${{ github.run_number }}
           --dart-define=APP_VERSION=${{ env.APP_VERSION }}
       # Muốn cài ĐÈ được thì mọi bản phải ký bằng CÙNG một khoá. Khoá nằm trong GitHub Secrets (xem README.md).
       - name: Ký APK bằng khoá riêng
