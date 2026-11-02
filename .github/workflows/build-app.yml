@@ -9,6 +9,11 @@ on:
 permissions:
   contents: write
 
+# Hai lần push sát nhau: huỷ lần cũ, tránh đụng nhau ở bước force-push tag latest
+concurrency:
+  group: build-app
+  cancel-in-progress: true
+
 env:
   APP_VERSION: 1.0.${{ github.run_number }}
 
@@ -35,7 +40,7 @@ jobs:
             -Wl,-z,max-page-size=16384 native/yui.cpp -o libyui.so
           ls -la libyui.so
 
-# Giống app Kính: thư mục android/ không nằm trong repo, workflow tự sinh bằng flutter create
+      # Giống app Kính: thư mục android/ không nằm trong repo, workflow tự sinh bằng flutter create
       - name: Sinh thư mục android/ và gắn libyui.so
         run: |
           flutter create --platforms=android --org com.bachdathan --project-name yui_app .
@@ -120,6 +125,7 @@ jobs:
             --build-name=${{ env.APP_VERSION }} \
             --build-number=${{ github.run_number }} \
             --dart-define=APP_VERSION=${{ env.APP_VERSION }}
+
       # Muốn cài ĐÈ được thì mọi bản phải ký bằng CÙNG một khoá. Khoá nằm trong GitHub Secrets (xem README.md).
       - name: Ký APK bằng khoá riêng
         env:
@@ -132,7 +138,8 @@ jobs:
           if [ -n "$KS_B64" ]; then
             BT="$(ls -d "$ANDROID_HOME"/build-tools/* | sort -V | tail -1)"
             echo "$KS_B64" | base64 -d > "$RUNNER_TEMP/yui.jks"
-            "$BT/zipalign" -p -f 4 "$APK" "$RUNNER_TEMP/aligned.apk"
+            # -P 16: căn .so theo trang 16KB (cần build-tools 35+), khớp với max-page-size=16384
+            "$BT/zipalign" -P 16 -f 4 "$APK" "$RUNNER_TEMP/aligned.apk"
             "$BT/apksigner" sign --ks "$RUNNER_TEMP/yui.jks" --ks-pass env:KS_PASS --key-pass env:KEY_PASS \
               --ks-key-alias "$KEY_ALIAS" --out Yui-android-arm64.apk "$RUNNER_TEMP/aligned.apk"
             "$BT/apksigner" verify --print-certs Yui-android-arm64.apk | head -3
