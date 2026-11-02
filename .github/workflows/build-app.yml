@@ -16,6 +16,8 @@ concurrency:
 
 env:
   APP_VERSION: 1.0.${{ github.run_number }}
+  # Để trống = tự tìm trong assets/ (ưu tiên file tên có "icon", sau đó "logo"). Muốn chỉ định tay thì điền, vd: assets/icon.png
+  ICON_PATH: ""
 
 jobs:
   android:
@@ -103,6 +105,33 @@ jobs:
 
       - run: flutter pub get
 
+      # android/ được sinh lại mỗi lần build nên icon mặc định của Flutter sẽ đè icon của bạn -> phải tạo lại icon ở đây
+      - name: Tìm file icon
+        shell: bash
+        run: |
+          if [ -n "$ICON_PATH" ]; then
+            f="$ICON_PATH"
+          else
+            echo "PNG trong assets/:"; find assets -type f -iname '*.png' | sort
+            f="$(find assets -type f -iname '*icon*.png' | sort | head -1)"
+            [ -z "$f" ] && f="$(find assets -type f -iname '*logo*.png' | sort | head -1)"
+          fi
+          test -n "$f" && test -f "$f" || { echo "::error::Không tìm thấy file icon PNG trong assets/ (hoặc ICON_PATH sai)"; exit 1; }
+          echo "Dùng icon: $f"
+          echo "ICON_FILE=$f" >> "$GITHUB_ENV"
+
+      - name: Tạo icon launcher Android
+        run: |
+          flutter pub add --dev flutter_launcher_icons
+          cat > icon_config.yaml <<EOF
+          flutter_launcher_icons:
+            android: true
+            ios: false
+            image_path: "$ICON_FILE"
+            min_sdk_android: 21
+          EOF
+          dart run flutter_launcher_icons -f icon_config.yaml
+
       # Ép compileSdk 36 cho mọi plugin
       - name: Ép compileSdk 36 cho mọi plugin
         run: |
@@ -172,6 +201,36 @@ jobs:
         run: flutter create --platforms=windows --org com.bachdathan --project-name yui_app .
 
       - run: flutter pub get
+
+      - name: Tìm file icon
+        shell: bash
+        run: |
+          if [ -n "$ICON_PATH" ]; then
+            f="$ICON_PATH"
+          else
+            echo "PNG trong assets/:"; find assets -type f -iname '*.png' | sort
+            f="$(find assets -type f -iname '*icon*.png' | sort | head -1)"
+            [ -z "$f" ] && f="$(find assets -type f -iname '*logo*.png' | sort | head -1)"
+          fi
+          test -n "$f" && test -f "$f" || { echo "::error::Không tìm thấy file icon PNG trong assets/ (hoặc ICON_PATH sai)"; exit 1; }
+          echo "Dùng icon: $f"
+          echo "ICON_FILE=$f" >> "$GITHUB_ENV"
+
+      - name: Tạo icon app Windows
+        shell: bash
+        run: |
+          flutter pub add --dev flutter_launcher_icons
+          cat > icon_config.yaml <<EOF
+          flutter_launcher_icons:
+            android: false
+            ios: false
+            image_path: "$ICON_FILE"
+            windows:
+              generate: true
+              image_path: "$ICON_FILE"
+              icon_size: 256
+          EOF
+          dart run flutter_launcher_icons -f icon_config.yaml
 
       - name: Build Windows
         run: flutter build windows --release --dart-define=APP_VERSION=${{ env.APP_VERSION }}
