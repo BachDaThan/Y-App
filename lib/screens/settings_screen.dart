@@ -128,6 +128,21 @@ class _SettingsScreenState extends State<SettingsScreen> {
             (v) => s.contextTurns = v.round()),
         _slider('Số luồng CPU (0 = tự chọn)', s.threads == 0 ? 'tự chọn' : '${s.threads}', s.threads.toDouble(), 0, 8, 8,
             (v) => s.threads = v.round(), after: () => app.engine.setThreads(s.threads)),
+        _slider('Đoán trước token (0 = tắt)', s.spec == 0 ? 'tắt' : '${s.spec}', s.spec.toDouble(), 0, 8, 8, (v) => s.spec = v.round()),
+        const Padding(
+          padding: EdgeInsets.fromLTRB(16, 0, 16, 8),
+          child: Text('Đoán các token lặp lại rồi kiểm tra một lượt: chữ ra y hệt, chỉ nhanh hơn khi câu trả lời có đoạn lặp (trích lại, danh sách, mã). Văn bản thường thì không lợi nên tự ngừng đoán.',
+              style: TextStyle(fontSize: 12)),
+        ),
+        SwitchListTile(
+          title: const Text('Chữ hiện mượt'),
+          subtitle: const Text('Nhả chữ đều theo nhịp thay vì từng cục; tự tăng tốc khi bộ đệm đầy nên không bị trễ.'),
+          value: s.smooth,
+          onChanged: (v) {
+            setState(() => s.smooth = v);
+            s.save();
+          },
+        ),
         SwitchListTile(
           title: const Text('Cho Yui dùng công cụ'),
           subtitle: const Text('Tính toán, xem giờ, tra cứu Wikipedia (cần mạng). Chỉ có tác dụng với model đã được dạy dùng công cụ.'),
