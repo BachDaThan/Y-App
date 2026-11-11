@@ -34,6 +34,10 @@ Xuất model bằng `export_yui.py` (xem repo Adaptive-MoE) ra file `.yui`, rồ
 - Không có `-march=native`/`/arch:AVX2` trong workflow nữa nên một bản cài chạy được trên mọi máy cùng kiến trúc.
 
 - Hỗ trợ file `.yui` v2 (4-bit, `export_yui.py --quant q4`): nhỏ hơn, nhanh hơn trên điện thoại; tab Model nhập như file thường.
+- Hỗ trợ `.yui` kiểu **t2** (BitNet b1.58, ternary, `export_yui.py --quant t2`, model train với `--bitnet`): ~2 bit/trọng số; cần engine bản này (file t2 không chạy được trên engine cũ).
+- **Đoán trước token** (Cài đặt → Đoán trước token, 0 = tắt): engine đoán đoạn lặp lại rồi kiểm tra một lượt; chữ ra giống hệt khi tắt. Chỉ nhanh hơn khi câu trả lời có lặp; tự ngừng đoán khi đoán sai nhiều. Chưa đo trên điện thoại thật.
+- **Chữ hiện mượt** (`lib/smooth_stream.dart`, tắt được trong Cài đặt): nhả chữ đều theo khung hình, tự tăng tốc để không trễ quá ~0,3 giây so với engine.
+- Đọc prompt theo lô 16 token (nhanh hơn khi lịch sử chat dài).
 
 ## Lưu ý
 Code Dart và workflow CHƯA được build thử (người viết không có Flutter SDK); engine C++ đã kiểm tra riêng. Nếu Actions báo lỗi, dán log để sửa.
