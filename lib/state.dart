@@ -12,6 +12,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 
 import 'agent.dart';
 import 'engine.dart';
+import 'smooth_stream.dart';
 
 /// Phiên bản app, CI truyền vào bằng --dart-define=APP_VERSION=1.0.N
 const String kAppVersion = String.fromEnvironment('APP_VERSION', defaultValue: '1.0.0');
@@ -267,6 +268,8 @@ class Settings extends ChangeNotifier {
   int maxNew = 120;
   int contextTurns = 4;
   int threads = 0; // số luồng CPU cho engine, 0 = tự chọn
+  int spec = 4; // đoán trước token (0 = tắt)
+  bool smooth = true; // nhả chữ đều theo khung hình
   bool useTools = true; // cho model dùng công cụ calc/time/search (chỉ có tác dụng với model đã học cú pháp <tool>)
   String activeModel = '';
   int lastUpdateCheck = 0;
@@ -285,6 +288,8 @@ class Settings extends ChangeNotifier {
     s.maxNew = p.getInt('maxNew') ?? 120;
     s.contextTurns = p.getInt('turns') ?? 4;
     s.threads = p.getInt('threads') ?? 0;
+    s.spec = p.getInt('spec') ?? 4;
+    s.smooth = p.getBool('smooth') ?? true;
     s.useTools = p.getBool('tools') ?? true;
     s.activeModel = p.getString('model') ?? '';
     s.lastUpdateCheck = p.getInt('upd') ?? 0;
@@ -302,6 +307,8 @@ class Settings extends ChangeNotifier {
     await p.setInt('maxNew', maxNew);
     await p.setInt('turns', contextTurns);
     await p.setInt('threads', threads);
+    await p.setInt('spec', spec);
+    await p.setBool('smooth', smooth);
     await p.setBool('tools', useTools);
     await p.setString('model', activeModel);
     await p.setInt('upd', lastUpdateCheck);
@@ -309,7 +316,7 @@ class Settings extends ChangeNotifier {
   }
 
   GenOptions get options => GenOptions(
-      temperature: temperature, topK: topK, topP: topP, repeatPenalty: repeatPenalty, k: k, maxNew: maxNew);
+      temperature: temperature, topK: topK, topP: topP, repeatPenalty: repeatPenalty, k: k, maxNew: maxNew, spec: spec);
 }
 
 /// Rút gọn câu trả lời để làm nội dung thông báo (tối đa 120 ký tự, một dòng).
@@ -536,14 +543,26 @@ class AppState extends ChangeNotifier {
       _sess = sess;
       var buf = '';
       var errored = false;
+      // Chữ hiện đều: SmoothReveal nhả dần phần văn bản đã có (tắt được trong Cài đặt).
+      final sm = settings.smooth
+          ? SmoothReveal(onUpdate: (t) {
+              bot.content = t;
+              notifyListeners();
+            })
+          : null;
       await for (final ev in sess.events) {
         if (ev is GenChunk) {
           buf += ev.text;
-          bot.content = useTools ? AgentTools.visible(buf) : buf;
-          final now = _nowMs();
-          if (now - lastNotify > 40) {
-            lastNotify = now;
-            notifyListeners();
+          final shown = useTools ? AgentTools.visible(buf) : buf;
+          if (sm != null) {
+            sm.setTarget(shown);
+          } else {
+            bot.content = shown;
+            final now = _nowMs();
+            if (now - lastNotify > 40) {
+              lastNotify = now;
+              notifyListeners();
+            }
           }
         } else if (ev is GenDone) {
           cancelled = ev.cancelled;
@@ -551,9 +570,18 @@ class AppState extends ChangeNotifier {
           totalMillis += ev.millis;
         } else if (ev is GenError) {
           errored = true;
+          sm?.cancel();
           buf += '${buf.isEmpty ? '' : '\n'}⚠ ${ev.message}';
           bot.content = buf;
         }
+      }
+      if (sm != null) {
+        if (cancelled || errored) {
+          sm.cancel(); // Dừng/lỗi: hiện nốt ngay
+        } else {
+          await sm.finish(); // chờ nhả hết chữ rồi mới xử lý công cụ/lưu
+        }
+        sm.dispose();
       }
       _sess = null;
       if (!useTools || cancelled || errored) {

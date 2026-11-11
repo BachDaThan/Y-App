@@ -15,6 +15,7 @@ class GenOptions {
   final double repeatPenalty;
   final int k; // số expert dùng: 1 nhanh hơn, 2 chất lượng hơn
   final int maxNew;
+  final int spec; // đoán trước token: số token đoán tối đa mỗi lượt (0 = tắt); chỉ nhanh hơn khi câu trả lời có lặp
   const GenOptions({
     this.temperature = 0.8,
     this.topK = 40,
@@ -22,6 +23,7 @@ class GenOptions {
     this.repeatPenalty = 1.1,
     this.k = 2,
     this.maxNew = 120,
+    this.spec = 4,
   });
 
   String toJson() => jsonEncode({
@@ -31,6 +33,7 @@ class GenOptions {
         'repeat_penalty': repeatPenalty,
         'num_predict': maxNew,
         'k': k,
+        'spec': spec,
       });
 }
 
