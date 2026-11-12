@@ -3,6 +3,7 @@ import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
+import '../services/voice_service.dart';
 import '../state.dart';
 
 class ChatScreen extends StatefulWidget {
@@ -22,11 +23,16 @@ class _ChatScreenState extends State<ChatScreen> {
   void initState() {
     super.initState();
     app.addListener(_stickToBottom);
+    voice.addListener(_onVoice);
+    _ctl.addListener(_onText);
+    voice.attach();
   }
 
   @override
   void dispose() {
     app.removeListener(_stickToBottom);
+    voice.removeListener(_onVoice);
+    _ctl.removeListener(_onText);
     _ctl.dispose();
     _scroll.dispose();
     _focus.dispose();
@@ -41,10 +47,47 @@ class _ChatScreenState extends State<ChatScreen> {
     });
   }
 
+  void _onText() {
+    if (mounted) setState(() {}); // đổi nút mic <-> gửi theo việc ô chat có chữ hay không
+  }
+
+  void _onVoice() {
+    final e = voice.takeError();
+    if (e != null && mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(e), duration: const Duration(seconds: 6)));
+    }
+  }
+
+  void _sendVoice(String text) {
+    _ctl.text = text;
+    _send();
+  }
+
+  Future<void> _mic() async {
+    if (app.loadedModel == null) {
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Chưa có model. Vào tab Model để chọn hoặc nhập file .yui.')));
+      return;
+    }
+    await voice.startListening(_sendVoice);
+  }
+
+  Future<void> _toggleHandsFree() async {
+    if (voice.handsFree) {
+      await voice.stopHandsFree();
+      return;
+    }
+    if (app.loadedModel == null) {
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Chưa có model. Vào tab Model để chọn hoặc nhập file .yui.')));
+      return;
+    }
+    await voice.startHandsFree(_sendVoice);
+  }
+
   Future<void> _send([String? preset]) async {
     final t = (preset ?? _ctl.text).trim();
     if (t.isEmpty || app.generating) return;
     _ctl.clear();
+    voice.stopSpeaking();
     final err = await app.send(t);
     if (err != null && mounted) {
       _ctl.text = t;
@@ -168,7 +211,7 @@ class _ChatScreenState extends State<ChatScreen> {
   @override
   Widget build(BuildContext context) {
     return ListenableBuilder(
-      listenable: app,
+      listenable: Listenable.merge([app, voice]),
       builder: (context, _) {
         final chat = app.currentChat;
         final msgs = chat?.messages ?? const <ChatMessage>[];
@@ -273,12 +316,98 @@ class _ChatScreenState extends State<ChatScreen> {
     );
   }
 
+  Widget _voiceBar(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
+    final canListen = voice.sttSupported;
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(12, 6, 12, 0),
+      child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+        Wrap(spacing: 8, children: [
+          if (voice.ttsSupported)
+            FilterChip(
+              avatar: Icon(voice.autoSpeak ? Icons.volume_up : Icons.volume_off, size: 16),
+              label: const Text('Đọc to'),
+              selected: voice.autoSpeak,
+              visualDensity: VisualDensity.compact,
+              onSelected: (v) => voice.setAutoSpeak(v),
+            ),
+          if (canListen)
+            FilterChip(
+              avatar: const Icon(Icons.headset_mic, size: 16),
+              label: const Text('Đàm thoại'),
+              selected: voice.handsFree,
+              visualDensity: VisualDensity.compact,
+              onSelected: (_) => _toggleHandsFree(),
+            ),
+          if (canListen && Platform.isAndroid)
+            FilterChip(
+              avatar: voice.sherpaBusy
+                  ? const SizedBox(width: 14, height: 14, child: CircularProgressIndicator(strokeWidth: 2))
+                  : const Icon(Icons.offline_bolt_outlined, size: 16),
+              label: Text(voice.sherpaBusy ? 'Đang tải ${(voice.sherpaProgress * 100).toInt()}%' : 'Offline (Sherpa)'),
+              selected: voice.useSherpa,
+              visualDensity: VisualDensity.compact,
+              onSelected: voice.sherpaBusy ? null : (v) => voice.setSherpa(v),
+            ),
+        ]),
+        if (voice.listening)
+          Padding(
+            padding: const EdgeInsets.only(top: 6),
+            child: Row(children: [
+              Icon(Icons.mic, size: 16, color: cs.error),
+              const SizedBox(width: 6),
+              Expanded(
+                child: Text(
+                  voice.partial.isEmpty ? 'Đang nghe…' : voice.partial,
+                  maxLines: 2,
+                  overflow: TextOverflow.ellipsis,
+                  style: TextStyle(color: cs.onSurfaceVariant),
+                ),
+              ),
+            ]),
+          )
+        else if (voice.speaking)
+          Padding(
+            padding: const EdgeInsets.only(top: 6),
+            child: Row(children: [
+              Icon(Icons.graphic_eq, size: 16, color: cs.primary),
+              const SizedBox(width: 6),
+              Text('Yui đang nói… (bấm Dừng để ngắt)', style: TextStyle(color: cs.onSurfaceVariant)),
+            ]),
+          ),
+      ]),
+    );
+  }
+
+  Widget _actionButton() {
+    if (app.generating || voice.speaking) {
+      return IconButton.filled(
+        tooltip: 'Dừng',
+        onPressed: () {
+          app.stop();
+          voice.stopSpeaking();
+          if (voice.handsFree) voice.stopHandsFree();
+        },
+        icon: const Icon(Icons.stop),
+      );
+    }
+    if (voice.listening) {
+      return IconButton.filled(tooltip: 'Xong', onPressed: voice.stopListening, icon: const Icon(Icons.mic));
+    }
+    if (_ctl.text.trim().isEmpty && voice.sttSupported) {
+      return IconButton.filled(tooltip: 'Nói', onPressed: _mic, icon: const Icon(Icons.mic_none));
+    }
+    return IconButton.filled(tooltip: 'Gửi', onPressed: _send, icon: const Icon(Icons.send));
+  }
+
   Widget _composer(BuildContext context) {
     return Material(
       elevation: 3,
       child: SafeArea(
         top: false,
-        child: Padding(
+        child: Column(mainAxisSize: MainAxisSize.min, children: [
+          if (voice.ttsSupported || voice.sttSupported) _voiceBar(context),
+          Padding(
           padding: const EdgeInsets.fromLTRB(12, 8, 8, 8),
           child: Row(crossAxisAlignment: CrossAxisAlignment.end, children: [
             Expanded(
@@ -309,11 +438,10 @@ class _ChatScreenState extends State<ChatScreen> {
               ),
             ),
             const SizedBox(width: 6),
-            app.generating
-                ? IconButton.filled(tooltip: 'Dừng', onPressed: app.stop, icon: const Icon(Icons.stop))
-                : IconButton.filled(tooltip: 'Gửi', onPressed: _send, icon: const Icon(Icons.send)),
+            _actionButton(),
           ]),
         ),
+        ]),
       ),
     );
   }
