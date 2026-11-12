@@ -18,6 +18,17 @@ env:
   ICON_PATH: ""
 
 jobs:
+  sync-yui:
+    # yui.cpp (native/yui.cpp) phải giống hệt bản ở Adaptive-MoE
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Kiểm tra đồng bộ yui.cpp
+        run: python tools/check_yui_sync.py --strict
+
   android:
     runs-on: ubuntu-latest
     steps:
