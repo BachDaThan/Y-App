@@ -1,9 +1,12 @@
+import 'dart:typed_data';
 import 'dart:io';
 
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
 import '../services/voice_service.dart';
+import '../services/vision_service.dart';
+import 'package:file_picker/file_picker.dart';
 import '../state.dart';
 
 class ChatScreen extends StatefulWidget {
@@ -83,12 +86,104 @@ class _ChatScreenState extends State<ChatScreen> {
     await voice.startHandsFree(_sendVoice);
   }
 
+  String? _imgPath;
+  Float32List? _imgEmb;
+  int _imgN = 0;
+  bool _encoding = false;
+
+  void _snack(String m) {
+    if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(m), duration: const Duration(seconds: 6)));
+  }
+
+  Future<void> _importVisionModel() async {
+    final res = await FilePicker.platform.pickFiles(type: FileType.any, allowMultiple: false);
+    final p = res?.files.single.path;
+    if (p == null) return;
+    if (!p.toLowerCase().endsWith('.onnx')) {
+      _snack('Hãy chọn file yui-vision.onnx (xuất từ export_vision.py).');
+      return;
+    }
+    await vision.importModel(p, deleteSrc: Platform.isAndroid);
+    _snack('Đã nhập model ảnh.');
+  }
+
+  Future<void> _attachImage() async {
+    if (app.loadedModel == null) {
+      _snack('Chưa có model. Vào tab Model để chọn hoặc nhập file .yui.');
+      return;
+    }
+    if (!await vision.installed()) {
+      _snack('Chưa có model ảnh: chọn file yui-vision.onnx. (Chỉ model .yui đã train ảnh mới hiểu được ảnh.)');
+      await _importVisionModel();
+      if (!await vision.installed()) return;
+    }
+    final r = await FilePicker.platform.pickFiles(type: FileType.image, allowMultiple: false);
+    final path = r?.files.single.path;
+    if (path == null) return;
+    setState(() => _encoding = true);
+    try {
+      final emb = await vision.encode(app.engine, path);
+      final d = (app.modelInfo?['d'] as num?)?.toInt() ?? 0;
+      final ctx = (app.modelInfo?['ctx'] as num?)?.toInt() ?? 0;
+      if (d <= 0 || emb.isEmpty || emb.length % d != 0) throw Exception('Model ảnh không khớp model chữ (chiều embedding khác nhau).');
+      final n = emb.length ~/ d;
+      if (ctx > 0 && n + 40 > ctx) throw Exception('Model chữ chỉ có ngữ cảnh $ctx token, không đủ chứa $n token ảnh.');
+      if (!mounted) return;
+      setState(() {
+        _imgPath = path;
+        _imgEmb = emb;
+        _imgN = n;
+      });
+    } catch (e) {
+      _snack('Không xử lý được ảnh: ${'$e'.replaceFirst('Exception: ', '')}');
+    } finally {
+      if (mounted) setState(() => _encoding = false);
+    }
+  }
+
+  Widget _imgPreview(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(12, 8, 12, 0),
+      child: Align(
+        alignment: Alignment.centerLeft,
+        child: _encoding
+            ? const Row(mainAxisSize: MainAxisSize.min, children: [
+                SizedBox(width: 18, height: 18, child: CircularProgressIndicator(strokeWidth: 2)),
+                SizedBox(width: 8),
+                Text('Đang đọc ảnh…'),
+              ])
+            : Stack(clipBehavior: Clip.none, children: [
+                ClipRRect(borderRadius: BorderRadius.circular(10), child: Image.file(File(_imgPath!), width: 72, height: 72, fit: BoxFit.cover)),
+                Positioned(
+                  right: -8,
+                  top: -8,
+                  child: InkWell(
+                    onTap: () => setState(() {
+                      _imgPath = null;
+                      _imgEmb = null;
+                    }),
+                    child: const CircleAvatar(radius: 11, child: Icon(Icons.close, size: 14)),
+                  ),
+                ),
+              ]),
+      ),
+    );
+  }
+
   Future<void> _send([String? preset]) async {
     final t = (preset ?? _ctl.text).trim();
-    if (t.isEmpty || app.generating) return;
+    final emb = _imgEmb;
+    if ((t.isEmpty && emb == null) || app.generating) return;
+    final n = _imgN;
     _ctl.clear();
     voice.stopSpeaking();
-    final err = await app.send(t);
+    if (emb != null) {
+      setState(() {
+        _imgPath = null;
+        _imgEmb = null;
+      });
+    }
+    final err = emb != null ? await app.sendImage(t, emb, n) : await app.send(t);
     if (err != null && mounted) {
       _ctl.text = t;
       ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(err)));
@@ -394,7 +489,7 @@ class _ChatScreenState extends State<ChatScreen> {
     if (voice.listening) {
       return IconButton.filled(tooltip: 'Xong', onPressed: voice.stopListening, icon: const Icon(Icons.mic));
     }
-    if (_ctl.text.trim().isEmpty && voice.sttSupported) {
+    if (_ctl.text.trim().isEmpty && _imgEmb == null && voice.sttSupported) {
       return IconButton.filled(tooltip: 'Nói', onPressed: _mic, icon: const Icon(Icons.mic_none));
     }
     return IconButton.filled(tooltip: 'Gửi', onPressed: _send, icon: const Icon(Icons.send));
@@ -407,9 +502,15 @@ class _ChatScreenState extends State<ChatScreen> {
         top: false,
         child: Column(mainAxisSize: MainAxisSize.min, children: [
           if (voice.ttsSupported || voice.sttSupported) _voiceBar(context),
+          if (_imgPath != null || _encoding) _imgPreview(context),
           Padding(
           padding: const EdgeInsets.fromLTRB(12, 8, 8, 8),
           child: Row(crossAxisAlignment: CrossAxisAlignment.end, children: [
+            IconButton(
+              tooltip: 'Gửi ảnh',
+              onPressed: (app.generating || _encoding) ? null : _attachImage,
+              icon: const Icon(Icons.image_outlined),
+            ),
             Expanded(
               child: Focus(
                 onKeyEvent: (node, ev) {
