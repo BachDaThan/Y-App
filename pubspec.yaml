@@ -25,6 +25,8 @@ dependencies:
   sherpa_onnx: ^1.12.0
   record: ^6.0.0
   archive: ^4.0.0
+  # Xem ảnh: đọc/resize ảnh (thuần Dart, không thêm thư viện native)
+  image: ^4.2.0
 
 flutter:
   uses-material-design: true
