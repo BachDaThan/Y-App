@@ -48,10 +48,21 @@ jobs:
           flutter create --platforms=android --org com.bachdathan --project-name yui_app .
           MANIFEST=android/app/src/main/AndroidManifest.xml
           sed -i 's#<application#<uses-permission android:name="android.permission.INTERNET"/>\n    <application#' "$MANIFEST"
+          # Giọng nói: quyền micro + cho app thấy dịch vụ nhận dạng/đọc của Android (Android 11+)
+          sed -i 's#<application#<uses-permission android:name="android.permission.RECORD_AUDIO"/>\n    <application#' "$MANIFEST"
+          if grep -q "<queries>" "$MANIFEST"; then
+            sed -i 's#<queries>#<queries>\n        <intent><action android:name="android.speech.RecognitionService"/></intent>\n        <intent><action android:name="android.intent.action.TTS_SERVICE"/></intent>#' "$MANIFEST"
+          else
+            sed -i 's#<application#<queries>\n        <intent><action android:name="android.speech.RecognitionService"/></intent>\n        <intent><action android:name="android.intent.action.TTS_SERVICE"/></intent>\n    </queries>\n    <application#' "$MANIFEST"
+          fi
           sed -i 's#android:label="[^"]*"#android:label="Yui"#' "$MANIFEST"
+          # sherpa_onnx / record cần minSdk >= 24
+          for G in android/app/build.gradle.kts android/app/build.gradle; do
+            [ -f "$G" ] && sed -i -E 's/minSdk(Version)? ?=? ?flutter\.minSdkVersion/minSdk = 24/' "$G"
+          done
           mkdir -p android/app/src/main/jniLibs/arm64-v8a
           cp libyui.so android/app/src/main/jniLibs/arm64-v8a/
-          grep -n "INTERNET\|android:label" "$MANIFEST"
+          grep -n "INTERNET\|RECORD_AUDIO\|RecognitionService\|TTS_SERVICE\|android:label" "$MANIFEST"
 
       # FIX: flutter_local_notifications yêu cầu core library desugaring
       - name: Bật core library desugaring (cho flutter_local_notifications)
