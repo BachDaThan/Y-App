@@ -145,7 +145,7 @@ class UpdateService extends ChangeNotifier {
   Future<void> install() async {
     final f = file;
     if (f == null || state != UpdateState.ready) return;
-    final r = await OpenFilex.open(f.path);
+    final r = await OpenFilex.open(f.path, type: Platform.isAndroid ? 'application/vnd.android.package-archive' : null);
     if (r.type != ResultType.done) {
       message = 'Không mở được trình cài đặt: ${r.message}. Hãy cho phép "Cài app không rõ nguồn" cho Yui trong Cài đặt máy.';
       notifyListeners();

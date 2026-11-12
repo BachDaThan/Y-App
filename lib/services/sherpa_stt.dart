@@ -1,9 +1,9 @@
 import 'dart:async';
 import 'dart:io';
-import 'dart:isolate';
 import 'dart:typed_data';
 
 import 'package:archive/archive.dart';
+import 'package:flutter/foundation.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:record/record.dart';
 import 'package:sherpa_onnx/sherpa_onnx.dart' as so;
@@ -11,6 +11,22 @@ import 'package:sherpa_onnx/sherpa_onnx.dart' as so;
 /// Nhận dạng giọng nói tiếng Việt OFFLINE 100% bằng Sherpa-ONNX.
 /// Mic (16 kHz) -> Silero VAD cắt câu -> Zipformer-vi-30M (int8) -> chữ. Không gửi âm thanh đi đâu cả.
 /// Model tải MỘT lần từ GitHub (k2-fsa/sherpa-onnx, tag asr-models) rồi lưu trong thư mục dữ liệu của app.
+/// Chạy trong isolate: giải nén .tar.bz2 -> chỉ giữ *.onnx và tokens.txt, phẳng vào [args[1]].
+void _extractModel(List<String> args) {
+  final tmp = args[0], dir = args[1];
+  final bytes = File(tmp).readAsBytesSync();
+  final tar = TarDecoder().decodeBytes(BZip2Decoder().decodeBytes(bytes));
+  for (final f in tar.files) {
+    if (!f.isFile) continue;
+    final name = f.name.split('/').last;
+    if (name.isEmpty || name.startsWith('.')) continue;
+    if (name.endsWith('.onnx') || name == 'tokens.txt') {
+      File('$dir${Platform.pathSeparator}$name').writeAsBytesSync(f.content as List<int>);
+    }
+  }
+  File(tmp).deleteSync();
+}
+
 class SherpaStt {
   static const _base = 'https://github.com/k2-fsa/sherpa-onnx/releases/download/asr-models/';
   static const _modelName = 'sherpa-onnx-zipformer-vi-30M-int8-2026-02-09';
@@ -69,20 +85,8 @@ class SherpaStt {
     final tmp = '${dir.path}${Platform.pathSeparator}_model.tar.bz2';
     await _download('$_base$_modelName.tar.bz2', tmp, (p) => onProgress(p * 0.85));
     final dirPath = dir.path;
-    // Giải nén trong isolate riêng để không đứng UI
-    await Isolate.run(() {
-      final bytes = File(tmp).readAsBytesSync();
-      final tar = TarDecoder().decodeBytes(BZip2Decoder().decodeBytes(bytes));
-      for (final f in tar.files) {
-        if (!f.isFile) continue;
-        final name = f.name.split('/').last;
-        if (name.isEmpty || name.startsWith('.')) continue;
-        if (name.endsWith('.onnx') || name == 'tokens.txt') {
-          File('$dirPath${Platform.pathSeparator}$name').writeAsBytesSync(f.content as List<int>);
-        }
-      }
-      File(tmp).deleteSync();
-    });
+    // Giải nén bằng compute() + hàm top-level (KHÔNG dùng closure trong hàm async: nó kéo theo cả WidgetsFlutterBinding nên isolate từ chối)
+    await compute(_extractModel, <String>[tmp, dirPath]);
     onProgress(0.9);
     await _download('$_base$_vadFile', await _p(_vadFile), (p) => onProgress(0.9 + p * 0.1));
     if (!await isInstalled()) {
