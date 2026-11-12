@@ -40,4 +40,4 @@ Xuất model bằng `export_yui.py` (xem repo Adaptive-MoE) ra file `.yui`, rồ
 - Đọc prompt theo lô 16 token (nhanh hơn khi lịch sử chat dài).
 
 ## Lưu ý
-Code Dart và workflow đã build thành công trên GitHub Actions (APK Android arm64 + bản Windows). Engine C++ có test riêng (`make test` ở repo Adaptive-MoE). Một số tính năng (vd đoán trước token) chưa đo tốc độ trên điện thoại thật. Nếu Actions báo lỗi, dán log để sửa.
+Code Dart và workflow đã build thành công trên GitHub Actions (APK Android arm64 + bản Windows). Engine C++ có test riêng (`make test` ở repo Adaptive-MoE). Đã chạy thử trên điện thoại Android: nạp model `q4` 32,9 MB (d=256, 6 lớp, 16 expert, ngữ cảnh 128) thành công, chat mượt, tốc độ khoảng 187–240 token/s (số tác giả tự đo trên một máy, chất lượng câu trả lời phụ thuộc model). Một số tính năng (vd đoán trước token) chưa đo tốc độ trên điện thoại thật. Nếu Actions báo lỗi, dán log để sửa.
