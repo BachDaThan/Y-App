@@ -9,14 +9,12 @@ on:
 permissions:
   contents: write
 
-# Hai lần push sát nhau: huỷ lần cũ, tránh đụng nhau ở bước force-push tag latest
 concurrency:
   group: build-app
   cancel-in-progress: true
 
 env:
   APP_VERSION: 1.0.${{ github.run_number }}
-  # Để trống = tự tìm trong assets/ (ưu tiên file tên có "icon", sau đó "logo"). Muốn chỉ định tay thì điền, vd: assets/icon.png
   ICON_PATH: ""
 
 jobs:
@@ -42,13 +40,11 @@ jobs:
             -Wl,-z,max-page-size=16384 native/yui.cpp -o libyui.so
           ls -la libyui.so
 
-      # Giống app Kính: thư mục android/ không nằm trong repo, workflow tự sinh bằng flutter create
       - name: Sinh thư mục android/ và gắn libyui.so
         run: |
           flutter create --platforms=android --org com.bachdathan --project-name yui_app .
           MANIFEST=android/app/src/main/AndroidManifest.xml
           sed -i 's#<application#<uses-permission android:name="android.permission.INTERNET"/>\n    <application#' "$MANIFEST"
-          # Giọng nói: quyền micro + cho app thấy dịch vụ nhận dạng/đọc của Android (Android 11+)
           sed -i 's#<application#<uses-permission android:name="android.permission.RECORD_AUDIO"/>\n    <application#' "$MANIFEST"
           if grep -q "<queries>" "$MANIFEST"; then
             sed -i 's#<queries>#<queries>\n        <intent><action android:name="android.speech.RecognitionService"/></intent>\n        <intent><action android:name="android.intent.action.TTS_SERVICE"/></intent>#' "$MANIFEST"
@@ -56,7 +52,6 @@ jobs:
             sed -i 's#<application#<queries>\n        <intent><action android:name="android.speech.RecognitionService"/></intent>\n        <intent><action android:name="android.intent.action.TTS_SERVICE"/></intent>\n    </queries>\n    <application#' "$MANIFEST"
           fi
           sed -i 's#android:label="[^"]*"#android:label="Yui"#' "$MANIFEST"
-          # sherpa_onnx / record cần minSdk >= 24
           for G in android/app/build.gradle.kts android/app/build.gradle; do
             [ -f "$G" ] && sed -i -E 's/minSdk(Version)? ?=? ?flutter\.minSdkVersion/minSdk = 24/' "$G"
           done
@@ -64,97 +59,56 @@ jobs:
           cp libyui.so android/app/src/main/jniLibs/arm64-v8a/
           grep -n "INTERNET\|RECORD_AUDIO\|RecognitionService\|TTS_SERVICE\|android:label" "$MANIFEST"
 
-      # FIX: Tắt lintVital (tránh crash CommentDetector / List.removeLast)
       - name: Tắt lintVital (fix crash CommentDetector)
         run: |
           python3 - <<'PY'
           from pathlib import Path
           import re
 
-          files = [
-              Path("android/app/build.gradle.kts"),
-              Path("android/app/build.gradle"),
-          ]
-
-          for p in files:
+          for p in [Path("android/app/build.gradle.kts"), Path("android/app/build.gradle")]:
               if not p.exists():
                   continue
               text = p.read_text(encoding="utf-8")
 
               if "checkReleaseBuilds" in text:
-                  # Đã có thì sửa thành false
                   text = re.sub(r'checkReleaseBuilds\s*=\s*\w+', 'checkReleaseBuilds = false', text)
                   text = re.sub(r'checkReleaseBuilds\s+\w+', 'checkReleaseBuilds false', text)
               else:
-                  # Chèn mới
                   if p.suffix == ".kts":
-                      lint_block = '''
-    lint {
-        checkReleaseBuilds = false
-        abortOnError = false
-    }
-'''
-                      if "android {" in text:
-                          text = text.replace("android {", "android {" + lint_block, 1)
-                      else:
-                          text += "\nandroid {" + lint_block + "}\n"
+                      block = "\n    lint {\n        checkReleaseBuilds = false\n        abortOnError = false\n    }\n"
                   else:
-                      lint_block = '''
-    lintOptions {
-        checkReleaseBuilds false
-        abortOnError false
-    }
-'''
-                      if "android {" in text:
-                          text = text.replace("android {", "android {" + lint_block, 1)
-                      else:
-                          text += "\nandroid {" + lint_block + "}\n"
+                      block = "\n    lintOptions {\n        checkReleaseBuilds false\n        abortOnError false\n    }\n"
+                  if "android {" in text:
+                      text = text.replace("android {", "android {" + block, 1)
+                  else:
+                      text += "\nandroid {" + block + "}\n"
 
               p.write_text(text, encoding="utf-8")
               print(f"Patched lint: {p}")
-              print("---")
-              print(text)
           PY
 
-      # FIX: flutter_local_notifications yêu cầu core library desugaring
       - name: Bật core library desugaring (cho flutter_local_notifications)
         run: |
           python3 - <<'PY'
           from pathlib import Path
 
-          # Tìm file build script
           p = Path("android/app/build.gradle.kts")
           if not p.exists():
               p = Path("android/app/build.gradle")
-
           if not p.exists():
               raise SystemExit("Không tìm thấy android/app/build.gradle(.kts)")
 
           text = p.read_text(encoding="utf-8")
           is_kts = p.suffix == ".kts"
 
-          # 1. Bật flag desugaring
           if "coreLibraryDesugaringEnabled" not in text and "isCoreLibraryDesugaringEnabled" not in text:
               if is_kts:
-                  # Kotlin DSL
-                  text = text.replace(
-                      "compileOptions {",
-                      "compileOptions {\n        isCoreLibraryDesugaringEnabled = true"
-                  )
+                  text = text.replace("compileOptions {", "compileOptions {\n        isCoreLibraryDesugaringEnabled = true")
               else:
-                  # Groovy
-                  text = text.replace(
-                      "compileOptions {",
-                      "compileOptions {\n        coreLibraryDesugaringEnabled true"
-                  )
+                  text = text.replace("compileOptions {", "compileOptions {\n        coreLibraryDesugaringEnabled true")
 
-          # 2. Thêm dependency
           if "desugar_jdk_libs" not in text:
-              if is_kts:
-                  dep = '    coreLibraryDesugaring("com.android.tools:desugar_jdk_libs:2.1.4")'
-              else:
-                  dep = '    coreLibraryDesugaring "com.android.tools:desugar_jdk_libs:2.1.4"'
-
+              dep = '    coreLibraryDesugaring("com.android.tools:desugar_jdk_libs:2.1.4")' if is_kts else '    coreLibraryDesugaring "com.android.tools:desugar_jdk_libs:2.1.4"'
               if "dependencies {" in text:
                   text = text.replace("dependencies {", "dependencies {\n" + dep, 1)
               else:
@@ -162,13 +116,10 @@ jobs:
 
           p.write_text(text, encoding="utf-8")
           print(f"Đã patch: {p}")
-          print("--- Nội dung sau khi patch ---")
-          print(text)
           PY
 
       - run: flutter pub get
 
-      # android/ được sinh lại mỗi lần build nên icon mặc định của Flutter sẽ đè icon của bạn -> phải tạo lại icon ở đây
       - name: Tìm file icon
         shell: bash
         run: |
@@ -195,7 +146,6 @@ jobs:
           EOF
           dart run flutter_launcher_icons -f icon_config.yaml
 
-      # Ép compileSdk 36 cho mọi plugin
       - name: Ép compileSdk 36 cho mọi plugin
         run: |
           mkdir -p "$HOME/.gradle/init.d"
@@ -218,7 +168,6 @@ jobs:
             --build-number=${{ github.run_number }} \
             --dart-define=APP_VERSION=${{ env.APP_VERSION }}
 
-      # Muốn cài ĐÈ được thì mọi bản phải ký bằng CÙNG một khoá. Khoá nằm trong GitHub Secrets (xem README.md).
       - name: Ký APK bằng khoá riêng
         env:
           KS_B64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
@@ -230,7 +179,6 @@ jobs:
           if [ -n "$KS_B64" ]; then
             BT="$(ls -d "$ANDROID_HOME"/build-tools/* | sort -V | tail -1)"
             echo "$KS_B64" | base64 -d > "$RUNNER_TEMP/yui.jks"
-            # -P 16: căn .so theo trang 16KB (cần build-tools 35+), khớp với max-page-size=16384
             "$BT/zipalign" -P 16 -f 4 "$APK" "$RUNNER_TEMP/aligned.apk"
             "$BT/apksigner" sign --ks "$RUNNER_TEMP/yui.jks" --ks-pass env:KS_PASS --key-pass env:KEY_PASS \
               --ks-key-alias "$KEY_ALIAS" --out Yui-android-arm64.apk "$RUNNER_TEMP/aligned.apk"
@@ -255,7 +203,7 @@ jobs:
           cache: true
       - uses: ilammy/msvc-dev-cmd@v1
 
-      - name: Biên dịch yui.dll (MSVC, CRT tĩnh nên không cần cài thêm gì)
+      - name: Biên dịch yui.dll (MSVC, CRT tĩnh)
         shell: cmd
         run: cl /nologo /O2 /std:c++17 /EHsc /MT /LD /fp:fast /arch:AVX2 /DYUI_LIB native\yui.cpp /Fe:yui.dll
 
@@ -298,7 +246,7 @@ jobs:
       - name: Build Windows
         run: flutter build windows --release --dart-define=APP_VERSION=${{ env.APP_VERSION }}
 
-      - name: Đóng gói (zip + trình cài đặt Inno Setup)
+      - name: Đóng gói (zip + Inno Setup)
         shell: pwsh
         run: |
           $rel = "build\windows\x64\runner\Release"
@@ -323,7 +271,7 @@ jobs:
       - uses: actions/download-artifact@v4
         with:
           path: dist
-      - name: Gắn lại tag latest vào commit này
+      - name: Gắn lại tag latest
         run: |
           git tag -f latest
           git push -f origin latest
