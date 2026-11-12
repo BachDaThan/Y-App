@@ -40,4 +40,4 @@ Xuất model bằng `export_yui.py` (xem repo Adaptive-MoE) ra file `.yui`, rồ
 - Đọc prompt theo lô 16 token (nhanh hơn khi lịch sử chat dài).
 
 ## Lưu ý
-Code Dart và workflow CHƯA được build thử (người viết không có Flutter SDK); engine C++ đã kiểm tra riêng. Nếu Actions báo lỗi, dán log để sửa.
+Code Dart và workflow đã build thành công trên GitHub Actions (APK Android arm64 + bản Windows). Engine C++ có test riêng (`make test` ở repo Adaptive-MoE). Một số tính năng (vd đoán trước token) chưa đo tốc độ trên điện thoại thật. Nếu Actions báo lỗi, dán log để sửa.
