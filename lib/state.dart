@@ -1,3 +1,4 @@
+import 'dart:typed_data';
 // state.dart - trạng thái toàn app: cài đặt, kho model (.yui), kho lịch sử chat, engine, kiểm tra cập nhật.
 import 'dart:async';
 import 'dart:convert';
@@ -484,6 +485,21 @@ class AppState extends ChangeNotifier {
   }
 
   /// Trả về thông báo lỗi (nếu có) để hiện cho người dùng.
+  Float32List? _imgEmb; // embedding ảnh của tin sắp gửi (chỉ dùng một lần)
+  int _imgN = 0;
+
+  /// Gửi tin kèm ảnh. [emb] = embedding ảnh phẳng (n token x D) đã qua bộ mã hoá ảnh.
+  Future<String?> sendImage(String text, Float32List emb, int n) async {
+    if (generating) return null;
+    _imgEmb = emb;
+    _imgN = n;
+    final err = await send('🖼 ${text.trim().isEmpty ? '(ảnh)' : text.trim()}');
+    if (err != null) _imgEmb = null;
+    return err;
+  }
+
+  static String _forModel(String c) => c.startsWith('🖼 ') ? c.substring(3).replaceFirst('(ảnh)', '').trim() : c;
+
   Future<String?> send(String text) async {
     text = text.trim();
     if (text.isEmpty || generating) return null;
@@ -530,8 +546,11 @@ class AppState extends ChangeNotifier {
     final take = settings.contextTurns * 2 + 1;
     final tail = before.length > take ? before.sublist(before.length - take) : before;
     final msgs = <Map<String, String>>[
-      for (final m in tail) {'role': m.role, 'content': m.content}
+      for (final m in tail) {'role': m.role, 'content': _forModel(m.content)}
     ];
+    final img = _imgEmb;
+    final imgN = _imgN;
+    _imgEmb = null;
     final useTools = settings.useTools;
     var totalTokens = 0;
     var totalMillis = 0;
@@ -539,7 +558,7 @@ class AppState extends ChangeNotifier {
     var cancelled = false;
     // Vòng lặp công cụ (giống yui_agent.py): model viết <tool>tên đối_số</tool> -> app chạy -> trả lại lượt user <result>...</result> -> model viết tiếp.
     for (var step = 0; step <= AgentTools.maxSteps; step++) {
-      final sess = engine.chat(msgs, settings.options);
+      final sess = engine.chat(msgs, settings.options, image: step == 0 ? img : null, nImg: imgN);
       _sess = sess;
       var buf = '';
       var errored = false;

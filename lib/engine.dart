@@ -5,6 +5,7 @@ import 'dart:convert';
 import 'dart:ffi';
 import 'dart:io';
 import 'dart:isolate';
+import 'dart:typed_data';
 
 import 'package:ffi/ffi.dart';
 
@@ -121,12 +122,29 @@ class YuiEngine {
   }
 
   /// Chat theo định dạng SFT. messages = [{role, content}, ...], tin cuối phải là của user.
-  GenSession chat(List<Map<String, String>> messages, GenOptions o) => _gen(true, jsonEncode(messages), o);
+  /// [image]: embedding ảnh (nImg * D số float, đã qua bộ mã hoá ảnh) gắn vào tin user cuối.
+  GenSession chat(List<Map<String, String>> messages, GenOptions o, {Float32List? image, int nImg = 0}) =>
+      _gen(true, jsonEncode(messages), o, image, nImg);
+
+  /// Nạp model mã hoá ảnh (.onnx do export_vision.py xuất). Dùng ONNX Runtime của Sherpa nên cần đã bật "Offline (Sherpa)".
+  Future<void> loadVision(String path) async {
+    await _call((id) => ['vload', id, path]);
+  }
+
+  Future<void> unloadVision() async {
+    await _call((id) => ['vunload', id]);
+  }
+
+  /// [chw]: 3*224*224 float đã chuẩn hoá [-1,1] -> embedding ảnh phẳng (N*D float).
+  Future<Float32List> encodeImage(Float32List chw) async {
+    final m = await _call((id) => ['vrun', id, chw]);
+    return m[2] as Float32List;
+  }
 
   /// Viết tiếp văn bản thuần (không phải chat).
-  GenSession complete(String prompt, GenOptions o) => _gen(false, prompt, o);
+  GenSession complete(String prompt, GenOptions o) => _gen(false, prompt, o, null, 0);
 
-  GenSession _gen(bool chat, String input, GenOptions o) {
+  GenSession _gen(bool chat, String input, GenOptions o, Float32List? image, int nImg) {
     final id = _nextId++;
     final ctl = StreamController<GenEvent>();
     final inbox = StreamController<List<dynamic>>();
@@ -134,7 +152,7 @@ class YuiEngine {
     () async {
       try {
         await _ensureStarted();
-        _tx!.send(['gen', id, chat, input, o.toJson(), o.k]);
+        _tx!.send(['gen', id, chat, input, o.toJson(), o.k, image, nImg]);
         await for (final m in inbox.stream) {
           final type = m[1] as String;
           if (type == 'chunk') {
@@ -180,6 +198,10 @@ typedef _InfoN = Int32 Function(Pointer<Void>, Pointer<Utf8>, Int32);
 typedef _InfoD = int Function(Pointer<Void>, Pointer<Utf8>, int);
 typedef _BeginN = Pointer<Void> Function(Pointer<Void>, Pointer<Utf8>, Pointer<Utf8>, Int32, Pointer<Utf8>, Int32);
 typedef _BeginD = Pointer<Void> Function(Pointer<Void>, Pointer<Utf8>, Pointer<Utf8>, int, Pointer<Utf8>, int);
+typedef _BeginImgN = Pointer<Void> Function(Pointer<Void>, Pointer<Utf8>, Pointer<Utf8>, Int32, Pointer<Float>, Int32, Pointer<Utf8>, Int32);
+typedef _BeginImgD = Pointer<Void> Function(Pointer<Void>, Pointer<Utf8>, Pointer<Utf8>, int, Pointer<Float>, int, Pointer<Utf8>, int);
+typedef _VRunN = Int32 Function(Pointer<Void>, Pointer<Float>, Int32, Pointer<Float>, Int32, Pointer<Utf8>, Int32);
+typedef _VRunD = int Function(Pointer<Void>, Pointer<Float>, int, Pointer<Float>, int, Pointer<Utf8>, int);
 typedef _NextN = Int32 Function(Pointer<Void>, Pointer<Utf8>, Int32);
 typedef _NextD = int Function(Pointer<Void>, Pointer<Utf8>, int);
 typedef _ThreadsN = Void Function(Int32);
@@ -195,6 +217,10 @@ class _Native {
   late final _FreeD free = lib.lookupFunction<_FreeN, _FreeD>('yui_free');
   late final _InfoD info = lib.lookupFunction<_InfoN, _InfoD>('yui_info');
   late final _BeginD chatBegin = lib.lookupFunction<_BeginN, _BeginD>('yui_chat_begin');
+  late final _BeginImgD chatBeginImg = lib.lookupFunction<_BeginImgN, _BeginImgD>('yui_chat_begin_img');
+  late final _LoadD visionLoad = lib.lookupFunction<_LoadN, _LoadD>('yui_vision_load');
+  late final _VRunD visionRun = lib.lookupFunction<_VRunN, _VRunD>('yui_vision_run');
+  late final _FreeD visionFree = lib.lookupFunction<_FreeN, _FreeD>('yui_vision_free');
   late final _BeginD completeBegin = lib.lookupFunction<_BeginN, _BeginD>('yui_complete_begin');
   late final _NextD next = lib.lookupFunction<_NextN, _NextD>('yui_gen_next');
   late final _TokD tokens = lib.lookupFunction<_TokN, _TokD>('yui_gen_tokens');
@@ -247,7 +273,17 @@ class _Worker {
         out.send([m[1] as int, 'ok', '']);
         break;
       case 'gen':
-        _gen(m[1] as int, m[2] as bool, m[3] as String, m[4] as String, m[5] as int);
+        _gen(m[1] as int, m[2] as bool, m[3] as String, m[4] as String, m[5] as int, m[6] as Float32List?, m[7] as int);
+        break;
+      case 'vload':
+        _vload(m[1] as int, m[2] as String);
+        break;
+      case 'vunload':
+        _vunload();
+        out.send([m[1] as int, 'ok', '']);
+        break;
+      case 'vrun':
+        _vrun(m[1] as int, m[2] as Float32List);
         break;
       case 'cancel':
         _cancelled.add(m[1] as int);
@@ -268,6 +304,65 @@ class _Worker {
       out.send([id, 'ok', info]);
     } catch (e) {
       out.send([id, 'error', '$e']);
+    }
+  }
+
+  Pointer<Void> _vision = nullptr;
+
+  void _vunload() {
+    if (_vision != nullptr) {
+      n.visionFree(_vision);
+      _vision = nullptr;
+    }
+  }
+
+  void _vload(int id, String path) {
+    final err = calloc<Uint8>(512);
+    try {
+      _vunload();
+      final p = path.toNativeUtf8();
+      final h = n.visionLoad(p, err.cast<Utf8>(), 512);
+      malloc.free(p);
+      if (h == nullptr) {
+        out.send([id, 'error', err.cast<Utf8>().toDartString()]);
+        return;
+      }
+      _vision = h;
+      out.send([id, 'ok', '']);
+    } catch (e) {
+      out.send([id, 'error', '$e']);
+    } finally {
+      calloc.free(err);
+    }
+  }
+
+  void _vrun(int id, Float32List chw) {
+    if (_vision == nullptr) {
+      out.send([id, 'error', 'Chưa nạp model ảnh']);
+      return;
+    }
+    if (_busy) {
+      out.send([id, 'error', 'Engine đang bận sinh chữ']);
+      return;
+    }
+    const cap = 1024 * 1024; // đủ cho 1024 token ảnh x 1024 chiều
+    final err = calloc<Uint8>(512);
+    final inp = calloc<Float>(chw.length);
+    final outp = calloc<Float>(cap);
+    try {
+      inp.asTypedList(chw.length).setAll(0, chw);
+      final k = n.visionRun(_vision, inp, 224, outp, cap, err.cast<Utf8>(), 512);
+      if (k < 0) {
+        out.send([id, 'error', err.cast<Utf8>().toDartString()]);
+        return;
+      }
+      out.send([id, 'ok', Float32List.fromList(outp.asTypedList(k))]);
+    } catch (e) {
+      out.send([id, 'error', '$e']);
+    } finally {
+      calloc.free(err);
+      calloc.free(inp);
+      calloc.free(outp);
     }
   }
 
@@ -306,7 +401,7 @@ class _Worker {
     }
   }
 
-  Future<void> _gen(int id, bool chat, String input, String optsJson, int k) async {
+  Future<void> _gen(int id, bool chat, String input, String optsJson, int k, Float32List? image, int nImg) async {
     if (_busy) {
       out.send([id, 'error', 'Engine đang bận']);
       return;
@@ -324,7 +419,14 @@ class _Worker {
     try {
       final inP = input.toNativeUtf8();
       final optP = optsJson.toNativeUtf8();
-      g = (chat ? n.chatBegin : n.completeBegin)(_model, inP, optP, k, err.cast<Utf8>(), 512);
+      if (chat && image != null && nImg > 0) {
+        final imgP = calloc<Float>(image.length);
+        imgP.asTypedList(image.length).setAll(0, image);
+        g = n.chatBeginImg(_model, inP, optP, k, imgP, nImg, err.cast<Utf8>(), 512); // engine tự sao chép ảnh
+        calloc.free(imgP);
+      } else {
+        g = (chat ? n.chatBegin : n.completeBegin)(_model, inP, optP, k, err.cast<Utf8>(), 512);
+      }
       malloc.free(inP);
       malloc.free(optP);
       if (g == nullptr) {
