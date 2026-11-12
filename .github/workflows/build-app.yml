@@ -35,7 +35,7 @@ jobs:
 
       - name: Biên dịch libyui.so (NDK, arm64-v8a)
         run: |
-          NDK="${ANDROID_NDK_LATEST_HOME:-${ANDROID_NDK_HOME:-$ANDROID_NDK_ROOT}}"
+          NDK="\( {ANDROID_NDK_LATEST_HOME:- \){ANDROID_NDK_HOME:-$ANDROID_NDK_ROOT}}"
           echo "NDK=$NDK"
           CXX="$NDK/toolchains/llvm/prebuilt/linux-x86_64/bin/aarch64-linux-android24-clang++"
           "$CXX" -O3 -DYUI_LIB -shared -fPIC -std=c++17 -fopenmp-simd -static-libstdc++ \
@@ -63,6 +63,58 @@ jobs:
           mkdir -p android/app/src/main/jniLibs/arm64-v8a
           cp libyui.so android/app/src/main/jniLibs/arm64-v8a/
           grep -n "INTERNET\|RECORD_AUDIO\|RecognitionService\|TTS_SERVICE\|android:label" "$MANIFEST"
+
+      # FIX: Tắt lintVital (tránh crash CommentDetector / List.removeLast)
+      - name: Tắt lintVital (fix crash CommentDetector)
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          import re
+
+          files = [
+              Path("android/app/build.gradle.kts"),
+              Path("android/app/build.gradle"),
+          ]
+
+          for p in files:
+              if not p.exists():
+                  continue
+              text = p.read_text(encoding="utf-8")
+
+              if "checkReleaseBuilds" in text:
+                  # Đã có thì sửa thành false
+                  text = re.sub(r'checkReleaseBuilds\s*=\s*\w+', 'checkReleaseBuilds = false', text)
+                  text = re.sub(r'checkReleaseBuilds\s+\w+', 'checkReleaseBuilds false', text)
+              else:
+                  # Chèn mới
+                  if p.suffix == ".kts":
+                      lint_block = '''
+    lint {
+        checkReleaseBuilds = false
+        abortOnError = false
+    }
+'''
+                      if "android {" in text:
+                          text = text.replace("android {", "android {" + lint_block, 1)
+                      else:
+                          text += "\nandroid {" + lint_block + "}\n"
+                  else:
+                      lint_block = '''
+    lintOptions {
+        checkReleaseBuilds false
+        abortOnError false
+    }
+'''
+                      if "android {" in text:
+                          text = text.replace("android {", "android {" + lint_block, 1)
+                      else:
+                          text += "\nandroid {" + lint_block + "}\n"
+
+              p.write_text(text, encoding="utf-8")
+              print(f"Patched lint: {p}")
+              print("---")
+              print(text)
+          PY
 
       # FIX: flutter_local_notifications yêu cầu core library desugaring
       - name: Bật core library desugaring (cho flutter_local_notifications)
@@ -125,7 +177,7 @@ jobs:
           else
             echo "PNG trong assets/:"; find assets -type f -iname '*.png' | sort
             f="$(find assets -type f -iname '*icon*.png' | sort | head -1)"
-            [ -z "$f" ] && f="$(find assets -type f -iname '*logo*.png' | sort | head -1)"
+            [ -z "\( f" ] && f=" \)(find assets -type f -iname '*logo*.png' | sort | head -1)"
           fi
           test -n "$f" && test -f "$f" || { echo "::error::Không tìm thấy file icon PNG trong assets/ (hoặc ICON_PATH sai)"; exit 1; }
           echo "Dùng icon: $f"
@@ -221,7 +273,7 @@ jobs:
           else
             echo "PNG trong assets/:"; find assets -type f -iname '*.png' | sort
             f="$(find assets -type f -iname '*icon*.png' | sort | head -1)"
-            [ -z "$f" ] && f="$(find assets -type f -iname '*logo*.png' | sort | head -1)"
+            [ -z "\( f" ] && f=" \)(find assets -type f -iname '*logo*.png' | sort | head -1)"
           fi
           test -n "$f" && test -f "$f" || { echo "::error::Không tìm thấy file icon PNG trong assets/ (hoặc ICON_PATH sai)"; exit 1; }
           echo "Dùng icon: $f"
@@ -253,7 +305,7 @@ jobs:
           Copy-Item yui.dll "$rel\"
           Compress-Archive -Path "$rel\*" -DestinationPath Yui-windows-portable.zip
           choco install innosetup --no-progress -y
-          & "${env:ProgramFiles(x86)}\Inno Setup 6\ISCC.exe" /DMyAppVersion=${{ env.APP_VERSION }} installer\yui.iss
+          & "\( {env:ProgramFiles(x86)}\Inno Setup 6\ISCC.exe" /DMyAppVersion= \){{ env.APP_VERSION }} installer\yui.iss
           Move-Item dist\Yui-Setup.exe Yui-windows-setup.exe
 
       - uses: actions/upload-artifact@v4
