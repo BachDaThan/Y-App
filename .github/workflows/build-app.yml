@@ -33,7 +33,7 @@ jobs:
 
       - name: Biên dịch libyui.so (NDK, arm64-v8a)
         run: |
-          NDK="\( {ANDROID_NDK_LATEST_HOME:- \){ANDROID_NDK_HOME:-$ANDROID_NDK_ROOT}}"
+          NDK="${ANDROID_NDK_LATEST_HOME:-${ANDROID_NDK_HOME:-$ANDROID_NDK_ROOT}}"
           echo "NDK=$NDK"
           CXX="$NDK/toolchains/llvm/prebuilt/linux-x86_64/bin/aarch64-linux-android24-clang++"
           "$CXX" -O3 -DYUI_LIB -shared -fPIC -std=c++17 -fopenmp-simd -static-libstdc++ \
@@ -87,7 +87,7 @@ jobs:
               print(f"Patched lint: {p}")
           PY
 
-      - name: Bật core library desugaring (cho flutter_local_notifications)
+      - name: Bật core library desugaring
         run: |
           python3 - <<'PY'
           from pathlib import Path
@@ -128,7 +128,7 @@ jobs:
           else
             echo "PNG trong assets/:"; find assets -type f -iname '*.png' | sort
             f="$(find assets -type f -iname '*icon*.png' | sort | head -1)"
-            [ -z "\( f" ] && f=" \)(find assets -type f -iname '*logo*.png' | sort | head -1)"
+            [ -z "$f" ] && f="$(find assets -type f -iname '*logo*.png' | sort | head -1)"
           fi
           test -n "$f" && test -f "$f" || { echo "::error::Không tìm thấy file icon PNG trong assets/ (hoặc ICON_PATH sai)"; exit 1; }
           echo "Dùng icon: $f"
@@ -146,7 +146,7 @@ jobs:
           EOF
           dart run flutter_launcher_icons -f icon_config.yaml
 
-      - name: Ép compileSdk 36 cho mọi plugin
+      - name: Ép compileSdk 36
         run: |
           mkdir -p "$HOME/.gradle/init.d"
           cat > "$HOME/.gradle/init.d/compile-sdk.gradle" <<'EOF'
@@ -158,7 +158,6 @@ jobs:
             }
           }
           EOF
-          cat "$HOME/.gradle/init.d/compile-sdk.gradle"
 
       - name: Build APK
         run: |
@@ -168,7 +167,7 @@ jobs:
             --build-number=${{ github.run_number }} \
             --dart-define=APP_VERSION=${{ env.APP_VERSION }}
 
-      - name: Ký APK bằng khoá riêng
+      - name: Ký APK
         env:
           KS_B64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
           KS_PASS: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
@@ -184,7 +183,7 @@ jobs:
               --ks-key-alias "$KEY_ALIAS" --out Yui-android-arm64.apk "$RUNNER_TEMP/aligned.apk"
             "$BT/apksigner" verify --print-certs Yui-android-arm64.apk | head -3
           else
-            echo "::warning::Chưa có secret ANDROID_KEYSTORE_BASE64: APK đang ký bằng khoá debug ngẫu nhiên, KHÔNG cài đè được giữa các lần build."
+            echo "::warning::Chưa có secret ANDROID_KEYSTORE_BASE64"
             cp "$APK" Yui-android-arm64.apk
           fi
 
@@ -203,7 +202,7 @@ jobs:
           cache: true
       - uses: ilammy/msvc-dev-cmd@v1
 
-      - name: Biên dịch yui.dll (MSVC, CRT tĩnh)
+      - name: Biên dịch yui.dll
         shell: cmd
         run: cl /nologo /O2 /std:c++17 /EHsc /MT /LD /fp:fast /arch:AVX2 /DYUI_LIB native\yui.cpp /Fe:yui.dll
 
@@ -221,13 +220,13 @@ jobs:
           else
             echo "PNG trong assets/:"; find assets -type f -iname '*.png' | sort
             f="$(find assets -type f -iname '*icon*.png' | sort | head -1)"
-            [ -z "\( f" ] && f=" \)(find assets -type f -iname '*logo*.png' | sort | head -1)"
+            [ -z "$f" ] && f="$(find assets -type f -iname '*logo*.png' | sort | head -1)"
           fi
           test -n "$f" && test -f "$f" || { echo "::error::Không tìm thấy file icon PNG trong assets/ (hoặc ICON_PATH sai)"; exit 1; }
           echo "Dùng icon: $f"
           echo "ICON_FILE=$f" >> "$GITHUB_ENV"
 
-      - name: Tạo icon app Windows
+      - name: Tạo icon Windows
         shell: bash
         run: |
           flutter pub add --dev flutter_launcher_icons
@@ -246,14 +245,14 @@ jobs:
       - name: Build Windows
         run: flutter build windows --release --dart-define=APP_VERSION=${{ env.APP_VERSION }}
 
-      - name: Đóng gói (zip + Inno Setup)
+      - name: Đóng gói
         shell: pwsh
         run: |
           $rel = "build\windows\x64\runner\Release"
           Copy-Item yui.dll "$rel\"
           Compress-Archive -Path "$rel\*" -DestinationPath Yui-windows-portable.zip
           choco install innosetup --no-progress -y
-          & "\( {env:ProgramFiles(x86)}\Inno Setup 6\ISCC.exe" /DMyAppVersion= \){{ env.APP_VERSION }} installer\yui.iss
+          & "${env:ProgramFiles(x86)}\Inno Setup 6\ISCC.exe" /DMyAppVersion=${{ env.APP_VERSION }} installer\yui.iss
           Move-Item dist\Yui-Setup.exe Yui-windows-setup.exe
 
       - uses: actions/upload-artifact@v4
@@ -282,9 +281,8 @@ jobs:
           make_latest: true
           body: |
             Yui ${{ env.APP_VERSION }}
-            - Android: tải Yui-android-arm64.apk rồi mở để cài (cài đè lên bản cũ được nếu cùng khoá ký).
-            - Windows: chạy Yui-windows-setup.exe (cài đè bản cũ), hoặc giải nén Yui-windows-portable.zip.
-            Model (.yui) và lịch sử chat được giữ nguyên khi cập nhật.
+            - Android: tải Yui-android-arm64.apk rồi mở để cài.
+            - Windows: chạy Yui-windows-setup.exe hoặc giải nén Yui-windows-portable.zip.
           files: |
             dist/**/*.apk
             dist/**/*.exe
