@@ -14,6 +14,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'agent.dart';
 import 'engine.dart';
 import 'smooth_stream.dart';
+import 'yui_header.dart';
 
 /// Phiên bản app, CI truyền vào bằng --dart-define=APP_VERSION=1.0.N
 const String kAppVersion = String.fromEnvironment('APP_VERSION', defaultValue: '1.0.0');
@@ -125,20 +126,49 @@ class ModelEntry {
   final String name;
   final String path;
   final int bytes;
-  ModelEntry(this.name, this.path, this.bytes);
+  final YuiHeader? head; // header + META (v3) đọc từ đầu file; null nếu không đọc được
+  final String? headError; // lý do (tiếng Việt) nếu file không dùng được, vd phiên bản .yui lạ
+  ModelEntry(this.name, this.path, this.bytes, {this.head, this.headError});
   String get sizeText => bytes >= 1e9 ? '${(bytes / 1e9).toStringAsFixed(2)} GB' : '${(bytes / 1e6).toStringAsFixed(1)} MB';
+}
+
+class _HeadInfo {
+  final YuiHeader? head;
+  final String? error;
+  const _HeadInfo(this.head, this.error);
 }
 
 class ModelStore {
   final Directory dir;
   ModelStore(this.dir);
 
+  // Cache header theo (đường dẫn, kích thước, ngày sửa) để list() (gọi mỗi lần vẽ) không đọc lại file.
+  final Map<String, _HeadInfo> _heads = {};
+
+  _HeadInfo _headOf(File e, int len) {
+    final key = '${e.path}|$len|${e.lastModifiedSync().millisecondsSinceEpoch}';
+    final hit = _heads[key];
+    if (hit != null) return hit;
+    _HeadInfo r;
+    try {
+      r = _HeadInfo(YuiHeader.readSync(e.path), null);
+    } on YuiFormatException catch (err) {
+      r = _HeadInfo(null, err.message);
+    } catch (_) {
+      r = const _HeadInfo(null, 'Không đọc được file .yui');
+    }
+    _heads[key] = r;
+    return r;
+  }
+
   List<ModelEntry> list() {
     final out = <ModelEntry>[];
     if (!dir.existsSync()) return out;
     for (final e in dir.listSync()) {
       if (e is File && e.path.toLowerCase().endsWith('.yui')) {
-        out.add(ModelEntry(_base(e.path), e.path, e.lengthSync()));
+        final len = e.lengthSync();
+        final h = _headOf(e, len);
+        out.add(ModelEntry(_base(e.path), e.path, len, head: h.head, headError: h.error));
       }
     }
     out.sort((a, b) => a.name.toLowerCase().compareTo(b.name.toLowerCase()));
@@ -181,6 +211,8 @@ class ModelStore {
     if (!await ModelStore.isYui(src)) {
       throw Exception('Không phải file .yui hợp lệ (sai tiêu đề). Hãy chọn file xuất bằng export_yui.py');
     }
+    final why = YuiHeader.problem(src);
+    if (why != null) throw Exception(why);
     var name = _base(src);
     if (!name.toLowerCase().endsWith('.yui')) name = '$name.yui';
     name = _unique(name);
@@ -243,6 +275,11 @@ class ModelStore {
       if (!await ModelStore.isYui(tmp.path)) {
         await tmp.delete();
         throw Exception('File tải về không phải .yui hợp lệ');
+      }
+      final why = YuiHeader.problem(tmp.path);
+      if (why != null) {
+        await tmp.delete();
+        throw Exception(why);
       }
       await tmp.rename(dest.path);
       return ModelEntry(name, dest.path, await dest.length());
@@ -380,6 +417,11 @@ class AppState extends ChangeNotifier {
     final entry = models.find(name);
     if (entry == null) {
       modelError = 'Không tìm thấy $name';
+      notifyListeners();
+      return;
+    }
+    if (entry.headError != null) {
+      modelError = entry.headError; // vd phiên bản .yui app chưa hỗ trợ: báo rõ, không gọi engine
       notifyListeners();
       return;
     }
