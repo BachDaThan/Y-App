@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:path_provider/path_provider.dart';
 
 import '../state.dart';
+import '../yui_header.dart';
 
 class ModelsScreen extends StatelessWidget {
   const ModelsScreen({super.key});
@@ -70,6 +71,32 @@ class ModelsScreen extends StatelessWidget {
     if (ok == true) await app.deleteModel(m.name);
   }
 
+  /// Dòng mô tả dưới tên file: kích cỡ, lượng tử, phiên bản; với file v3 thêm tên model, miền, ngôn ngữ, giấy phép.
+  Widget _modelSubtitle(BuildContext context, ModelEntry m) {
+    final cs = Theme.of(context).colorScheme;
+    final h = m.head;
+    if (h == null) {
+      return Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+        Text(m.sizeText),
+        if (m.headError != null) Text(m.headError!, style: TextStyle(color: cs.error)),
+      ]);
+    }
+    final line = [m.sizeText, h.quantLabel, if (h.paramsText != null) h.paramsText!, '.yui v${h.ver}'].join(' · ');
+    final tags = <String>[for (final d in h.domains) domainLabel(d), ...h.langs];
+    return Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+      Text(line),
+      if (h.hasMeta && h.name != null) Text(h.name!, style: const TextStyle(fontWeight: FontWeight.w500)),
+      if (tags.isNotEmpty)
+        Padding(
+          padding: const EdgeInsets.only(top: 4),
+          child: Wrap(spacing: 6, runSpacing: 2, children: [
+            for (final t in tags) Chip(label: Text(t), visualDensity: VisualDensity.compact, padding: EdgeInsets.zero),
+          ]),
+        ),
+      if (h.hasMeta && h.license != null) Text('Giấy phép: ${h.license}', style: Theme.of(context).textTheme.bodySmall),
+    ]);
+  }
+
   @override
   Widget build(BuildContext context) {
     return ListenableBuilder(
@@ -79,6 +106,7 @@ class ModelsScreen extends StatelessWidget {
         final list = app.models.list();
         final busy = app.busyLabel != null || app.loadingModel || app.generating;
         final info = app.modelInfo;
+        final loadedHead = app.loadedModel == null ? null : app.models.find(app.loadedModel!)?.head;
         return Scaffold(
           appBar: AppBar(
             title: const Text('Model'),
@@ -137,6 +165,19 @@ class ModelsScreen extends StatelessWidget {
                           Chip(label: Text('${info['quant']}')),
                         ]),
                       ],
+                      if (loadedHead != null && loadedHead.hasMeta) ...[
+                        const SizedBox(height: 8),
+                        if (loadedHead.name != null) Text(loadedHead.name!),
+                        if (loadedHead.description != null) Text(loadedHead.description!, style: Theme.of(context).textTheme.bodySmall),
+                        if (loadedHead.domains.isNotEmpty)
+                          Padding(
+                            padding: const EdgeInsets.only(top: 6),
+                            child: Wrap(spacing: 6, runSpacing: 2, children: [
+                              for (final d in loadedHead.domains)
+                                Chip(label: Text(domainLabel(d)), visualDensity: VisualDensity.compact, padding: EdgeInsets.zero),
+                            ]),
+                          ),
+                      ],
                     ]),
                   ),
                 ),
@@ -155,7 +196,8 @@ class ModelsScreen extends StatelessWidget {
                     leading: Icon(app.loadedModel == m.name ? Icons.check_circle : Icons.memory,
                         color: app.loadedModel == m.name ? cs.primary : null),
                     title: Text(m.name, maxLines: 1, overflow: TextOverflow.ellipsis),
-                    subtitle: Text(m.sizeText),
+                    subtitle: _modelSubtitle(context, m),
+                    isThreeLine: m.head?.hasMeta == true,
                     trailing: Row(mainAxisSize: MainAxisSize.min, children: [
                       if (app.loadedModel != m.name)
                         FilledButton.tonal(onPressed: busy ? null : () => app.loadModel(m.name), child: const Text('Dùng')),
