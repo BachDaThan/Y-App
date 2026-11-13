@@ -5,6 +5,8 @@ import 'dart:convert';
 import 'dart:io';
 
 import 'services/background_guard.dart';
+import 'services/hub_download.dart';
+import 'services/hub_service.dart';
 import 'services/notifier.dart';
 import 'services/update_service.dart';
 import 'package:flutter/material.dart';
@@ -288,6 +290,21 @@ class ModelStore {
     }
   }
 
+  /// Tải model từ Kho (P2-4): tiếp tục khi đứt mạng, kiểm sha256 + dung lượng + cấu hình trong file so với manifest.
+  /// Không đổi hành vi của [download] (tải bằng link tay). [maxBytes]: trần dung lượng cho một model (mặc định 2 GB).
+  Future<ModelEntry> downloadHub(HubModel m,
+      {String? token, int? maxBytes, HubCancel? cancel, void Function(double?)? onProgress}) async {
+    final name = _unique(hubFileName(m));
+    final f = await hubDownload(m,
+        dir: dir,
+        destName: name,
+        token: token,
+        maxBytes: maxBytes,
+        cancel: cancel,
+        onProgress: (done, total) => onProgress?.call(total > 0 ? done / total : null));
+    return ModelEntry(name, f.path, await f.length());
+  }
+
   Future<void> delete(String name) async {
     final f = File('${dir.path}$_sep$name');
     if (await f.exists()) await f.delete();
@@ -494,6 +511,30 @@ class AppState extends ChangeNotifier {
     notifyListeners();
     try {
       final e = await models.download(url, token: token, onProgress: (p) {
+        progress = p;
+        notifyListeners();
+      });
+      busyLabel = null;
+      progress = null;
+      notifyListeners();
+      await loadModel(e.name);
+      return null;
+    } catch (e) {
+      busyLabel = null;
+      progress = null;
+      notifyListeners();
+      return '$e'.replaceFirst('Exception: ', '');
+    }
+  }
+
+  /// Tải một model trong Kho rồi nạp luôn (giống [downloadModel]). Trả null nếu thành công, ngược lại là lời báo lỗi tiếng Việt.
+  /// Bấm dừng ([cancel]) giữ lại phần đã tải để tải tiếp lần sau.
+  Future<String?> downloadHubModel(HubModel m, {String? token, int? maxBytes, HubCancel? cancel}) async {
+    busyLabel = 'Đang tải ${m.name}…';
+    progress = null;
+    notifyListeners();
+    try {
+      final e = await models.downloadHub(m, token: token, maxBytes: maxBytes, cancel: cancel, onProgress: (p) {
         progress = p;
         notifyListeners();
       });
