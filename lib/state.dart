@@ -5,6 +5,7 @@ import 'dart:convert';
 import 'dart:io';
 
 import 'services/background_guard.dart';
+import 'services/hub_cache.dart';
 import 'services/hub_download.dart';
 import 'services/hub_service.dart';
 import 'services/notifier.dart';
@@ -142,7 +143,8 @@ class _HeadInfo {
 
 class ModelStore {
   final Directory dir;
-  ModelStore(this.dir);
+  final HubCache hubCache; // sổ + LRU các model tải từ Kho (P2-5); file tự nhập không nằm trong sổ nên không bao giờ bị xoá tự động
+  ModelStore(this.dir) : hubCache = HubCache(dir);
 
   // Cache header theo (đường dẫn, kích thước, ngày sửa) để list() (gọi mỗi lần vẽ) không đọc lại file.
   final Map<String, _HeadInfo> _heads = {};
@@ -302,12 +304,17 @@ class ModelStore {
         maxBytes: maxBytes,
         cancel: cancel,
         onProgress: (done, total) => onProgress?.call(total > 0 ? done / total : null));
-    return ModelEntry(name, f.path, await f.length());
+    final size = await f.length();
+    try {
+      await hubCache.record(m, name, size);
+    } catch (_) {} // không ghi được sổ thì model chỉ không được quản lý LRU, không phải lỗi tải
+    return ModelEntry(name, f.path, size);
   }
 
   Future<void> delete(String name) async {
     final f = File('${dir.path}$_sep$name');
     if (await f.exists()) await f.delete();
+    await hubCache.forget(name);
   }
 }
 
@@ -328,6 +335,7 @@ class Settings extends ChangeNotifier {
   bool useTools = true; // cho model dùng công cụ calc/time/search (chỉ có tác dụng với model đã học cú pháp <tool>)
   String activeModel = '';
   int lastUpdateCheck = 0;
+  int hubCacheMb = kHubCacheDefaultMb; // trần dung lượng cho các model tải từ Kho (MB, tối thiểu kHubCacheMinMb)
 
   static Future<Settings> load() async {
     final s = Settings();
@@ -348,6 +356,8 @@ class Settings extends ChangeNotifier {
     s.useTools = p.getBool('tools') ?? true;
     s.activeModel = p.getString('model') ?? '';
     s.lastUpdateCheck = p.getInt('upd') ?? 0;
+    final hc = p.getInt('hubCacheMb') ?? kHubCacheDefaultMb;
+    s.hubCacheMb = hc < kHubCacheMinMb ? kHubCacheMinMb : hc;
     return s;
   }
 
@@ -367,6 +377,7 @@ class Settings extends ChangeNotifier {
     await p.setBool('tools', useTools);
     await p.setString('model', activeModel);
     await p.setInt('upd', lastUpdateCheck);
+    await p.setInt('hubCacheMb', hubCacheMb);
     notifyListeners();
   }
 
@@ -406,6 +417,7 @@ class AppState extends ChangeNotifier {
   bool loadingModel = false;
   String? modelError;
 
+  List<String> lastEvicted = const []; // tên các model Kho vừa bị xoá để giữ trần dung lượng (lần tải gần nhất)
   String? busyLabel; // đang nhập/tải model
   double? progress;
 
@@ -421,6 +433,7 @@ class AppState extends ChangeNotifier {
     final cdir = Directory('${root.path}${_sep}chats')..createSync(recursive: true);
     final s = await Settings.load();
     final a = AppState._(s, ModelStore(mdir), ChatStore(cdir));
+    unawaited(a.models.hubCache.cleanPartials()); // dọn file tải dở quá 7 ngày
     await a.refreshHistory();
     if (s.activeModel.isNotEmpty && a.models.find(s.activeModel) != null) {
       unawaited(a.loadModel(s.activeModel)); // tự nạp model lần trước, không chặn khởi động
@@ -453,6 +466,7 @@ class AppState extends ChangeNotifier {
       loadedModel = name;
       modelInfo = info;
       settings.activeModel = name;
+      await models.hubCache.touch(name); // nạp = vừa dùng (LRU); không phải model của Kho thì bỏ qua
       await settings.save();
     } catch (e) {
       loadedModel = null;
@@ -530,14 +544,27 @@ class AppState extends ChangeNotifier {
   /// Tải một model trong Kho rồi nạp luôn (giống [downloadModel]). Trả null nếu thành công, ngược lại là lời báo lỗi tiếng Việt.
   /// Bấm dừng ([cancel]) giữ lại phần đã tải để tải tiếp lần sau.
   Future<String?> downloadHubModel(HubModel m, {String? token, int? maxBytes, HubCancel? cancel}) async {
+    final capBytes = (settings.hubCacheMb < kHubCacheMinMb ? kHubCacheMinMb : settings.hubCacheMb) * 1000000;
     busyLabel = 'Đang tải ${m.name}…';
     progress = null;
     notifyListeners();
     try {
-      final e = await models.downloadHub(m, token: token, maxBytes: maxBytes, cancel: cancel, onProgress: (p) {
+      // Một model lớn hơn cả trần bộ nhớ đệm thì không bao giờ vừa: từ chối trước khi tải.
+      final e = await models.downloadHub(m,
+          token: token, maxBytes: (maxBytes == null || maxBytes > capBytes) ? capBytes : maxBytes, cancel: cancel, onProgress: (p) {
         progress = p;
         notifyListeners();
       });
+      // Giữ trần dung lượng SAU khi tải xong (tải hỏng không làm mất model cũ). Không bao giờ xoá model đang chạy/đang chọn/vừa tải.
+      lastEvicted = const [];
+      try {
+        final gone = await models.hubCache.trim(capBytes, protected: {
+          e.name,
+          if (loadedModel != null) loadedModel!,
+          if (settings.activeModel.isNotEmpty) settings.activeModel,
+        });
+        lastEvicted = gone.map((x) => x.name).toList();
+      } catch (_) {}
       busyLabel = null;
       progress = null;
       notifyListeners();
