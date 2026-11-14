@@ -1,11 +1,15 @@
 // agent.dart - công cụ (tool) chạy NGAY TRONG APP cho model đã được dạy bằng tool_data.py (repo Adaptive-MoE).
 // Khớp cú pháp của yui_agent.py:   model viết  <tool>calc 23*17</tool>  -> app chạy -> trả lại lượt user  <result>391</result>
-// Chỉ có 3 công cụ an toàn, không cần sandbox: calc (máy tính duyệt cú pháp, không eval), time, search (Wikipedia tiếng Việt, cần mạng).
-// fetch/read/write/py của yui_agent.py cố ý KHÔNG đưa vào app điện thoại.
+// Chỉ có 3 công cụ an toàn, không cần sandbox: calc (máy tính duyệt cú pháp, không eval), time, search (cần mạng).
+// `search` mặc định tìm NHIỀU TẦNG như yui_web.py (API có key của người dùng -> DuckDuckGo -> SearXNG -> Wikipedia, xem services/web_search.dart);
+// khi AgentTools.web == null thì chỉ hỏi Wikipedia tiếng Việt như bản cũ. Cú pháp model gọi không đổi (<tool>search ...</tool>) nên không cần huấn luyện lại.
+// fetch/read/write/py của yui_agent.py cố ý KHÔNG đưa vào app điện thoại (xem P8-3 trong kế hoạch).
 import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
 import 'dart:math' as math;
+
+import 'services/web_search.dart';
 
 /// Độ dài tối đa kết quả công cụ đưa lại cho model. Phải <= TOOL_RESULT_CHARS lúc tạo data (mặc định 300),
 /// và với model ngữ cảnh 128 token thì để 120 cho vừa. Đổi ở đây thì đổi cả TOOL_RESULT_CHARS khi chạy make_data.
@@ -110,7 +114,16 @@ class AgentTools {
   }
 
   // ------------------------------ search ------------------------------
+  /// Bộ tìm web nhiều tầng do AppState đặt theo Cài đặt. null = chỉ Wikipedia (hành vi cũ).
+  static WebSearch? web;
+
   static Future<String> search(String q) async {
+    final w = web;
+    if (w == null) return _searchWikipedia(q);
+    return w.search(q, chars: kToolResultChars);
+  }
+
+  static Future<String> _searchWikipedia(String q) async {
     q = q.trim();
     if (q.isEmpty) throw Exception('thiếu từ khoá');
     if (q.length > 200) q = q.substring(0, 200);

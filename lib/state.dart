@@ -10,6 +10,7 @@ import 'services/hub_download.dart';
 import 'services/hub_service.dart';
 import 'services/notifier.dart';
 import 'services/update_service.dart';
+import 'services/web_search.dart';
 import 'package:flutter/material.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -332,6 +333,8 @@ class Settings extends ChangeNotifier {
   int threads = 0; // số luồng CPU cho engine, 0 = tự chọn
   int spec = 4; // đoán trước token (0 = tắt)
   bool smooth = true; // nhả chữ đều theo khung hình
+  bool webMulti = true; // công cụ search tìm nhiều nguồn (API key -> DuckDuckGo -> SearXNG -> Wikipedia); tắt = chỉ Wikipedia
+  String webCfg = ''; // key + SearXNG người dùng nhập, mỗi dòng 'tên=giá trị' (xem WebConfig.parse)
   bool useTools = true; // cho model dùng công cụ calc/time/search (chỉ có tác dụng với model đã học cú pháp <tool>)
   String activeModel = '';
   int lastUpdateCheck = 0;
@@ -354,6 +357,8 @@ class Settings extends ChangeNotifier {
     s.spec = p.getInt('spec') ?? 4;
     s.smooth = p.getBool('smooth') ?? true;
     s.useTools = p.getBool('tools') ?? true;
+    s.webMulti = p.getBool('webMulti') ?? true;
+    s.webCfg = p.getString('webCfg') ?? '';
     s.activeModel = p.getString('model') ?? '';
     s.lastUpdateCheck = p.getInt('upd') ?? 0;
     final hc = p.getInt('hubCacheMb') ?? kHubCacheDefaultMb;
@@ -375,6 +380,8 @@ class Settings extends ChangeNotifier {
     await p.setInt('spec', spec);
     await p.setBool('smooth', smooth);
     await p.setBool('tools', useTools);
+    await p.setBool('webMulti', webMulti);
+    await p.setString('webCfg', webCfg);
     await p.setString('model', activeModel);
     await p.setInt('upd', lastUpdateCheck);
     await p.setInt('hubCacheMb', hubCacheMb);
@@ -434,11 +441,22 @@ class AppState extends ChangeNotifier {
     final s = await Settings.load();
     final a = AppState._(s, ModelStore(mdir), ChatStore(cdir));
     unawaited(a.models.hubCache.cleanPartials()); // dọn file tải dở quá 7 ngày
+    a.applyWebConfig();
     await a.refreshHistory();
     if (s.activeModel.isNotEmpty && a.models.find(s.activeModel) != null) {
       unawaited(a.loadModel(s.activeModel)); // tự nạp model lần trước, không chặn khởi động
     }
     return a;
+  }
+
+  /// Dựng lại bộ tìm web của công cụ `search` từ Cài đặt (gọi lúc khởi động và mỗi khi người dùng đổi).
+  void applyWebConfig() {
+    if (!settings.webMulti) {
+      AgentTools.web = null; // chỉ Wikipedia như bản cũ
+      return;
+    }
+    final c = WebConfig.parse(settings.webCfg);
+    AgentTools.web = WebSearch(keys: c.keys, searxng: c.searxng);
   }
 
   // ---------- model ----------
