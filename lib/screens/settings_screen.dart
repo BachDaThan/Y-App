@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:url_launcher/url_launcher.dart';
 
 import '../services/background_guard.dart';
+import '../services/web_search.dart';
 import '../state.dart';
 import '../widgets/legal_gate.dart';
 
@@ -65,6 +66,53 @@ class _SettingsScreenState extends State<SettingsScreen> {
         ],
       ),
     );
+  }
+
+  String _webCfgSummary() {
+    final c = WebConfig.parse(s.webCfg);
+    final n = c.keys.values.fold<int>(0, (a, v) => a + v.length);
+    if (n == 0 && c.searxng.isEmpty) return 'Chưa nhập. Không có key thì vẫn dùng DuckDuckGo và Wikipedia.';
+    return '$n key · ${c.searxng.length} SearXNG';
+  }
+
+  Future<void> _editWebCfg() async {
+    final ctl = TextEditingController(text: s.webCfg);
+    final ok = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Key và SearXNG'),
+        content: SingleChildScrollView(
+          child: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.start, children: [
+            const Text(
+                'Mỗi dòng một nguồn, dạng tên=giá trị (nhiều key cách nhau bằng dấu phẩy):\ntavily=KEY1,KEY2\nexa=KEY\nlinkup=KEY\nfirecrawl=KEY\nbraveapi=KEY\ngcse=KHOÁ:CX\nsearxng=https://may-chu-1,https://may-chu-2\n\nKey được lưu ngay trên máy này (không mã hoá). Câu bạn tra sẽ được gửi tới các dịch vụ bạn nhập.',
+                style: TextStyle(fontSize: 12)),
+            const SizedBox(height: 8),
+            TextField(
+              controller: ctl,
+              minLines: 5,
+              maxLines: 10,
+              autocorrect: false,
+              enableSuggestions: false,
+              decoration: const InputDecoration(border: OutlineInputBorder()),
+            ),
+          ]),
+        ),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('Huỷ')),
+          FilledButton(onPressed: () => Navigator.pop(ctx, true), child: const Text('Lưu')),
+        ],
+      ),
+    );
+    final text = ctl.text;
+    WidgetsBinding.instance.addPostFrameCallback((_) => ctl.dispose());
+    if (ok != true || !mounted) return;
+    setState(() => s.webCfg = text);
+    await s.save();
+    app.applyWebConfig();
+    final bad = WebConfig.parse(text).problems;
+    if (mounted && bad.isNotEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Bỏ qua: ${bad.take(2).join('; ')}')));
+    }
   }
 
   Future<void> _clearHistory() async {
@@ -151,6 +199,23 @@ class _SettingsScreenState extends State<SettingsScreen> {
             setState(() => s.useTools = v);
             s.save();
           },
+        ),
+        SwitchListTile(
+          title: const Text('Tìm web nhiều nguồn'),
+          subtitle: const Text('Công cụ tra cứu thử lần lượt: API có key của bạn, DuckDuckGo, SearXNG, rồi Wikipedia. Tắt thì chỉ hỏi Wikipedia. Câu bạn tra được gửi tới các dịch vụ này.'),
+          value: s.webMulti,
+          onChanged: (v) {
+            setState(() => s.webMulti = v);
+            s.save();
+            app.applyWebConfig();
+          },
+        ),
+        ListTile(
+          leading: const Icon(Icons.key_outlined),
+          title: const Text('Key và SearXNG (nâng cao)'),
+          subtitle: Text(_webCfgSummary()),
+          enabled: s.webMulti,
+          onTap: _editWebCfg,
         ),
         const Padding(
           padding: EdgeInsets.fromLTRB(16, 0, 16, 8),
