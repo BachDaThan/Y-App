@@ -57,6 +57,9 @@ jobs:
           MANIFEST=android/app/src/main/AndroidManifest.xml
           sed -i 's#<application#<uses-permission android:name="android.permission.INTERNET"/>\n    <application#' "$MANIFEST"
           sed -i 's#<application#<uses-permission android:name="android.permission.RECORD_AUDIO"/>\n    <application#' "$MANIFEST"
+          # Cập nhật ngầm mở file APK bằng trình cài của hệ thống: Android 8+ chỉ cho cài (và hiện nút cấp quyền "Cài app không rõ nguồn") nếu app KHAI BÁO quyền này.
+          # open_filex cố ý không tự khai báo nó, nên phải thêm ở đây.
+          sed -i 's#<application#<uses-permission android:name="android.permission.REQUEST_INSTALL_PACKAGES"/>\n    <application#' "$MANIFEST"
           if grep -q "<queries>" "$MANIFEST"; then
             sed -i 's#<queries>#<queries>\n        <intent><action android:name="android.speech.RecognitionService"/></intent>\n        <intent><action android:name="android.intent.action.TTS_SERVICE"/></intent>#' "$MANIFEST"
           else
