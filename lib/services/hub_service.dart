@@ -277,33 +277,60 @@ class HubResult {
 
 typedef HubFetch = Future<String> Function(Uri uri);
 
-/// Một lần tải manifest (không thử lại). Ném HubHttpException (mã khác 200), HubFormatException (quá lớn / chuyển hướng sang http / sai UTF-8), hoặc lỗi mạng của dart:io.
-Future<String> defaultHubFetch(Uri uri) async {
+/// Địa chỉ đích của một chuyển hướng: [loc] có thể là đường dẫn TƯƠNG ĐỐI (vd "/api/resolve-cache/…" như Hugging Face hay trả) nên phải ghép với địa chỉ hiện tại
+/// TRƯỚC khi kiểm tra. Chỉ nhận https (http chỉ khi [allowInsecure], dành cho test cục bộ), có tên máy, không kèm tài khoản/mật khẩu.
+Uri hubRedirectTarget(Uri base, String loc, {bool allowInsecure = false}) {
+  Uri t;
+  try {
+    t = base.resolve(loc.trim());
+  } catch (_) {
+    throw const HubFormatException('nguồn chuyển hướng tới một địa chỉ không hợp lệ');
+  }
+  final okScheme = t.scheme == 'https' || (allowInsecure && t.scheme == 'http');
+  if (!okScheme || t.host.isEmpty || t.userInfo.isNotEmpty) {
+    throw HubFormatException('nguồn chuyển hướng sang địa chỉ không phải https (${t.scheme.isEmpty ? '?' : t.scheme}://${t.host}), đã chặn');
+  }
+  return t;
+}
+
+/// Một lần tải manifest (không thử lại). Tự đi theo chuyển hướng bằng tay (≤ 5 lần, mỗi bước kiểm lại bằng [hubRedirectTarget]).
+/// Ném HubHttpException (mã khác 200), HubFormatException (quá lớn / chuyển hướng sai / sai UTF-8), hoặc lỗi mạng của dart:io.
+Future<String> defaultHubFetch(Uri uri, {bool allowInsecure = false}) async {
   final client = HttpClient()
     ..connectionTimeout = const Duration(seconds: 10)
     ..userAgent = 'yui-app';
   try {
-    final req = await client.getUrl(uri).timeout(const Duration(seconds: 15));
-    req.headers.set('Accept', 'application/json');
-    final res = await req.close().timeout(const Duration(seconds: 20));
-    if (res.statusCode != 200) {
-      final ra = int.tryParse(res.headers.value('retry-after') ?? '');
-      await res.drain<void>();
-      throw HubHttpException(res.statusCode, retryAfter: ra == null || ra < 0 ? null : Duration(seconds: ra > 30 ? 30 : ra));
-    }
-    for (final r in res.redirects) {
-      if (r.location.scheme != 'https') throw const HubFormatException('nguồn chuyển hướng sang địa chỉ không phải https, đã chặn');
-    }
-    if (res.contentLength > kHubMaxManifestBytes) throw const HubFormatException('manifest quá lớn (> 1 MB)');
-    final b = BytesBuilder(copy: false);
-    await for (final c in res.timeout(const Duration(seconds: 20))) {
-      b.add(c);
-      if (b.length > kHubMaxManifestBytes) throw const HubFormatException('manifest quá lớn (> 1 MB)');
-    }
-    try {
-      return utf8.decode(b.takeBytes());
-    } on FormatException {
-      throw const HubFormatException('manifest không phải UTF-8 hợp lệ');
+    var cur = uri;
+    for (var hop = 0;; hop++) {
+      final req = await client.getUrl(cur).timeout(const Duration(seconds: 15));
+      req.followRedirects = false;
+      req.headers.set('Accept', 'application/json');
+      final res = await req.close().timeout(const Duration(seconds: 20));
+      final st = res.statusCode;
+      if (st == 301 || st == 302 || st == 303 || st == 307 || st == 308) {
+        final loc = res.headers.value('location');
+        await res.drain<void>();
+        if (loc == null) throw const HubFormatException('nguồn chuyển hướng nhưng không cho biết nơi đến');
+        if (hop >= 5) throw const HubFormatException('nguồn chuyển hướng quá nhiều lần');
+        cur = hubRedirectTarget(cur, loc, allowInsecure: allowInsecure);
+        continue;
+      }
+      if (st != 200) {
+        final ra = int.tryParse(res.headers.value('retry-after') ?? '');
+        await res.drain<void>();
+        throw HubHttpException(st, retryAfter: ra == null || ra < 0 ? null : Duration(seconds: ra > 30 ? 30 : ra));
+      }
+      if (res.contentLength > kHubMaxManifestBytes) throw const HubFormatException('manifest quá lớn (> 1 MB)');
+      final b = BytesBuilder(copy: false);
+      await for (final c in res.timeout(const Duration(seconds: 20))) {
+        b.add(c);
+        if (b.length > kHubMaxManifestBytes) throw const HubFormatException('manifest quá lớn (> 1 MB)');
+      }
+      try {
+        return utf8.decode(b.takeBytes());
+      } on FormatException {
+        throw const HubFormatException('manifest không phải UTF-8 hợp lệ');
+      }
     }
   } finally {
     client.close(force: true);
