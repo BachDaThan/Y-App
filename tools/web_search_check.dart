@@ -500,6 +500,21 @@ khong co dau bang
     check(empty.startsWith('lỗi') && empty.contains('thiếu từ khoá'), 'AgentTools.run(search) từ khoá rỗng -> lỗi gọn');
     AgentTools.web = null;
   }
+  // ===== độ dài kết quả công cụ theo ngữ cảnh model (khớp TOOL_RESULT_CHARS của notebook huấn luyện) =====
+  {
+    check(toolResultCharsForCtx(128) == 120 && toolResultCharsForCtx(64) == 120 && toolResultCharsForCtx(129) == 300 && toolResultCharsForCtx(256) == 300 && toolResultCharsForCtx(512) == 300, 'toolResultCharsForCtx: ≤128 -> 120, lớn hơn -> 300');
+    reset();
+    f.routes['/w/api.php'] = (r) => ok({'query': {'pages': [{'title': 'A', 'extract': 'Chữ ${'dài ' * 200}'}]}});
+    AgentTools.web = mk(order: ['wikipedia'], ttl: Duration.zero);
+    AgentTools.resultChars = toolResultCharsForCtx(512);
+    final long = await AgentTools.run('search', 'độ dài 300');
+    AgentTools.resultChars = toolResultCharsForCtx(128);
+    final short = await AgentTools.run('search', 'độ dài 120');
+    check(long.runes.length > 200 && long.runes.length <= 300 && short.runes.length <= 120, 'AgentTools.resultChars điều khiển độ dài kết quả (${long.runes.length} / ${short.runes.length})');
+    check(f.to('/w/api.php').first.qp['exchars'] == '600' && f.to('/w/api.php').last.qp['exchars'] == '240', 'exchars của Wikipedia theo độ dài kết quả');
+    AgentTools.web = null;
+    AgentTools.resultChars = kToolResultChars;
+  }
 
   await f.stop();
   stdout.writeln(_fail == 0 ? 'ĐẠT: $_pass kiểm tra' : 'CÓ $_fail KIỂM TRA HỎNG ($_pass đạt)');

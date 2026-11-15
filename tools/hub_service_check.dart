@@ -225,8 +225,13 @@ Future<void> main(List<String> args) async {
       } else if (p == '/big') {
         req.response.write('x' * (kHubMaxManifestBytes + 10));
       } else if (p == '/redir') {
-        req.response.statusCode = 302;
+        req.response.statusCode = 307; // như Hugging Face: Location là đường dẫn TƯƠNG ĐỐI
         req.response.headers.set('Location', '/ok');
+      } else if (p == '/loop') {
+        req.response.statusCode = 302;
+        req.response.headers.set('Location', '/loop');
+      } else if (p == '/noloc') {
+        req.response.statusCode = 302;
       }
       await req.response.close();
     });
@@ -250,11 +255,22 @@ Future<void> main(List<String> args) async {
     } on HubFormatException {
       check(true, '');
     }
+    // chuyển hướng với Location TƯƠNG ĐỐI (đúng kiểu Hugging Face): phải ghép với địa chỉ hiện tại rồi mới kiểm
     try {
       await defaultHubFetch(Uri.parse('$base/redir'));
-      check(false, '11: chuyển hướng sang http phải bị chặn');
+      check(false, '11: đích chuyển hướng là http thì phải bị chặn');
     } on HubFormatException catch (e) {
-      check(e.message.contains('https'), '11: chặn chuyển hướng sang http');
+      check(e.message.contains('https') && e.message.contains('http://127.0.0.1'), '11: chặn khi đích (đã ghép địa chỉ tương đối) là http, thông báo nêu rõ đích (${e.message})');
+    }
+    final viaRel = await defaultHubFetch(Uri.parse('$base/redir'), allowInsecure: true);
+    check(HubManifest.parse(viaRel, 'L').models.length == 1, '11: Location tương đối được ghép và đi theo (ca Hugging Face đã gây lỗi ở app)');
+    for (final (path, want) in [('/loop', 'quá nhiều'), ('/noloc', 'không cho biết')]) {
+      try {
+        await defaultHubFetch(Uri.parse('$base$path'), allowInsecure: true);
+        check(false, '11: $path phải ném');
+      } on HubFormatException catch (e) {
+        check(e.message.contains(want), '11: $path -> ${e.message}');
+      }
     }
     await srv.close(force: true);
   }
@@ -267,6 +283,33 @@ Future<void> main(List<String> args) async {
     check(m.skipped == 0 && m.models.length == n && n > 0, '12: Dart đọc đủ $n mục do Python sinh, bỏ ${m.skipped}');
     check(m.models.any((e) => e.url.contains('%20')), '12: giữ nguyên link đã mã hoá %20');
     stdout.writeln('   Python -> Dart: ${m.models.map((e) => '${e.id}[${e.quant},${e.domains.join("/")}]').join(', ')}');
+  }
+
+  // 12b) hubRedirectTarget: đích chuyển hướng (kể cả tương đối)
+  {
+    final base = Uri.parse('https://huggingface.co/BachDaThan/Yui-Models/resolve/main/manifest.json');
+    String t(String loc) => hubRedirectTarget(base, loc).toString();
+    check(t('/api/resolve-cache/models/BachDaThan/Yui-Models/abc/manifest.json?%2Fx=1') == 'https://huggingface.co/api/resolve-cache/models/BachDaThan/Yui-Models/abc/manifest.json?%2Fx=1', '12b: đường dẫn tương đối (kiểu Hugging Face) -> https cùng máy chủ, giữ query');
+    check(t('https://cdn-lfs.example.org/x/y?sig=1') == 'https://cdn-lfs.example.org/x/y?sig=1', '12b: link tuyệt đối https sang máy chủ khác (CDN) được phép');
+    check(t('//cdn.example.org/x') == 'https://cdn.example.org/x', '12b: "//host/x" kế thừa https của địa chỉ gốc');
+    check(t('../main2/manifest.json') == 'https://huggingface.co/BachDaThan/Yui-Models/resolve/main2/manifest.json', '12b: đường dẫn tương đối kiểu ../');
+    for (final bad in ['http://huggingface.co/x', 'ftp://x.example/a', 'javascript:alert(1)', 'https://u:p@x.example/a', 'https:///nohost', 'data:text/plain,hi']) {
+      var blocked = false;
+      try {
+        hubRedirectTarget(base, bad);
+      } on HubFormatException {
+        blocked = true;
+      }
+      check(blocked, '12b: chặn "$bad"');
+    }
+    check(hubRedirectTarget(Uri.parse('http://127.0.0.1:1/a'), '/b', allowInsecure: true).toString() == 'http://127.0.0.1:1/b', '12b: allowInsecure chỉ dành cho test cục bộ');
+    var insecureBlocked = false;
+    try {
+      hubRedirectTarget(Uri.parse('http://127.0.0.1:1/a'), '/b');
+    } on HubFormatException {
+      insecureBlocked = true;
+    }
+    check(insecureBlocked, '12b: mặc định http bị chặn');
   }
 
   // 13) parseHubSources: nguồn do người dùng thêm
