@@ -1,9 +1,10 @@
-// main.dart - khung app: thanh điều hướng 4 tab (Chat, Lịch sử, Model, Cài đặt); màn rộng (Windows/tablet) dùng NavigationRail.
+// main.dart - khung app: thanh điều hướng 5 tab (Chat, Lịch sử, Model, Kho, Cài đặt); màn rộng (Windows/tablet) dùng NavigationRail.
 import 'package:flutter/material.dart';
 import 'package:url_launcher/url_launcher.dart';
 
 import 'screens/chat_screen.dart';
 import 'screens/history_screen.dart';
+import 'screens/hub_screen.dart';
 import 'screens/models_screen.dart';
 import 'screens/settings_screen.dart';
 import 'services/background_guard.dart';
@@ -61,9 +62,9 @@ class HomeShell extends StatefulWidget {
 }
 
 class _HomeShellState extends State<HomeShell> {
-  static const _titles = ['Chat', 'Lịch sử', 'Model', 'Cài đặt'];
-  static const _icons = [Icons.chat_bubble_outline, Icons.history, Icons.memory, Icons.settings_outlined];
-  static const _iconsOn = [Icons.chat_bubble, Icons.history, Icons.memory, Icons.settings];
+  static const _titles = ['Chat', 'Lịch sử', 'Model', 'Kho', 'Cài đặt'];
+  static const _icons = [Icons.chat_bubble_outline, Icons.history, Icons.memory, Icons.storefront_outlined, Icons.settings_outlined];
+  static const _iconsOn = [Icons.chat_bubble, Icons.history, Icons.memory, Icons.storefront, Icons.settings];
 
   @override
   void initState() {
@@ -106,7 +107,7 @@ class _HomeShellState extends State<HomeShell> {
 
   @override
   Widget build(BuildContext context) {
-    const pages = [ChatScreen(), HistoryScreen(), ModelsScreen(), SettingsScreen()];
+    const pages = [ChatScreen(), HistoryScreen(), ModelsScreen(), HubScreen(), SettingsScreen()];
     return ValueListenableBuilder<int>(
       valueListenable: app.tab,
       builder: (context, tab, _) {
@@ -120,7 +121,7 @@ class _HomeShellState extends State<HomeShell> {
                 labelType: NavigationRailLabelType.all,
                 onDestinationSelected: (i) => app.tab.value = i,
                 destinations: [
-                  for (var i = 0; i < 4; i++)
+                  for (var i = 0; i < _titles.length; i++)
                     NavigationRailDestination(
                       icon: Icon(_icons[i]),
                       selectedIcon: Icon(_iconsOn[i]),
@@ -139,7 +140,7 @@ class _HomeShellState extends State<HomeShell> {
             selectedIndex: tab,
             onDestinationSelected: (i) => app.tab.value = i,
             destinations: [
-              for (var i = 0; i < 4; i++)
+              for (var i = 0; i < _titles.length; i++)
                 NavigationDestination(
                   icon: Icon(_icons[i]),
                   selectedIcon: Icon(_iconsOn[i]),

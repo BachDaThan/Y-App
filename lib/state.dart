@@ -333,6 +333,8 @@ class Settings extends ChangeNotifier {
   int threads = 0; // số luồng CPU cho engine, 0 = tự chọn
   int spec = 4; // đoán trước token (0 = tắt)
   bool smooth = true; // nhả chữ đều theo khung hình
+  bool hubOn = false; // Kho model (P2): MẶC ĐỊNH TẮT, app không nối mạng tới nguồn nào cho tới khi người dùng bật
+  String hubExtra = ''; // nguồn Kho do người dùng thêm, mỗi dòng 'Tên = https://…/manifest.json' (xem parseHubSources)
   bool webMulti = true; // công cụ search tìm nhiều nguồn (API key -> DuckDuckGo -> SearXNG -> Wikipedia); tắt = chỉ Wikipedia
   String webCfg = ''; // key + SearXNG người dùng nhập, mỗi dòng 'tên=giá trị' (xem WebConfig.parse)
   bool useTools = true; // cho model dùng công cụ calc/time/search (chỉ có tác dụng với model đã học cú pháp <tool>)
@@ -358,6 +360,8 @@ class Settings extends ChangeNotifier {
     s.smooth = p.getBool('smooth') ?? true;
     s.useTools = p.getBool('tools') ?? true;
     s.webMulti = p.getBool('webMulti') ?? true;
+    s.hubOn = p.getBool('hubOn') ?? false;
+    s.hubExtra = p.getString('hubExtra') ?? '';
     s.webCfg = p.getString('webCfg') ?? '';
     s.activeModel = p.getString('model') ?? '';
     s.lastUpdateCheck = p.getInt('upd') ?? 0;
@@ -381,6 +385,8 @@ class Settings extends ChangeNotifier {
     await p.setBool('smooth', smooth);
     await p.setBool('tools', useTools);
     await p.setBool('webMulti', webMulti);
+    await p.setBool('hubOn', hubOn);
+    await p.setString('hubExtra', hubExtra);
     await p.setString('webCfg', webCfg);
     await p.setString('model', activeModel);
     await p.setInt('upd', lastUpdateCheck);
@@ -441,12 +447,30 @@ class AppState extends ChangeNotifier {
     final s = await Settings.load();
     final a = AppState._(s, ModelStore(mdir), ChatStore(cdir));
     unawaited(a.models.hubCache.cleanPartials()); // dọn file tải dở quá 7 ngày
+    a.hub = HubService(Directory('${root.path}${_sep}hub_cache'));
     a.applyWebConfig();
     await a.refreshHistory();
     if (s.activeModel.isNotEmpty && a.models.find(s.activeModel) != null) {
       unawaited(a.loadModel(s.activeModel)); // tự nạp model lần trước, không chặn khởi động
     }
     return a;
+  }
+
+  /// Dịch vụ lấy danh sách Kho (manifest + cache 24 giờ). KHÔNG tự nối mạng: chỉ khi giao diện gọi hub.load() sau khi người dùng bật Kho.
+  late final HubService hub;
+
+  /// Các nguồn Kho đang dùng: nguồn mặc định + nguồn người dùng thêm.
+  List<HubSource> get hubSources => [...kDefaultHubSources, ...parseHubSources(settings.hubExtra).sources];
+
+  /// Xoá bớt model Kho ít dùng nhất cho vừa trần hiện tại (gọi khi người dùng hạ trần). Không bao giờ xoá model đang chạy/đang chọn.
+  Future<List<String>> trimHubCache() async {
+    final capBytes = (settings.hubCacheMb < kHubCacheMinMb ? kHubCacheMinMb : settings.hubCacheMb) * 1000000;
+    final gone = await models.hubCache.trim(capBytes, protected: {
+      if (loadedModel != null) loadedModel!,
+      if (settings.activeModel.isNotEmpty) settings.activeModel,
+    });
+    if (gone.isNotEmpty) notifyListeners();
+    return gone.map((x) => x.name).toList();
   }
 
   /// Dựng lại bộ tìm web của công cụ `search` từ Cài đặt (gọi lúc khởi động và mỗi khi người dùng đổi).
