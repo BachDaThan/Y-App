@@ -269,6 +269,28 @@ Future<void> main(List<String> args) async {
     stdout.writeln('   Python -> Dart: ${m.models.map((e) => '${e.id}[${e.quant},${e.domains.join("/")}]').join(', ')}');
   }
 
+  // 13) parseHubSources: nguồn do người dùng thêm
+  {
+    final r = parseHubSources("""
+# ghi chú
+Kho của tôi = https://a.example/m.json
+https://b.example/path/manifest.json?v=1&x=2
+http://khong-https.example/m.json
+Có tài khoản = https://u:p@c.example/m.json
+$kHubOfficialUrl
+Kho của tôi = https://a.example/m.json
+không phải link
+Tên rất dài ${'x' * 80} = https://d.example/m.json
+""");
+    check(r.sources.map((e) => e.url).join(' ') == 'https://a.example/m.json https://b.example/path/manifest.json?v=1&x=2 https://d.example/m.json', '13: chỉ giữ nguồn https hợp lệ, bỏ trùng và trùng nguồn mặc định (${r.sources.map((e) => e.url)})');
+    check(r.sources[0].name == 'Kho của tôi' && r.sources[1].name == 'b.example' && r.sources[2].name.length == 40, '13: tên: lấy từ dòng, hoặc từ tên miền; cắt còn 40 ký tự');
+    check(r.sources[1].url.contains('?v=1&x=2'), '13: link có dấu = trong query không bị tách nhầm');
+    check(r.problems.length == 3 && r.problems.any((p) => p.contains('https')), '13: báo 3 dòng sai (${r.problems.length})');
+    final many = parseHubSources(List.generate(12, (i) => 'https://s$i.example/m.json').join('\n'));
+    check(many.sources.length == 8 && many.problems.length == 1, '13: tối đa 8 nguồn thêm');
+    check(parseHubSources('').sources.isEmpty && parseHubSources('   \n#x').problems.isEmpty, '13: rỗng');
+  }
+
   await tmp.delete(recursive: true);
   stdout.writeln(_fail == 0 ? 'ĐẠT: $_pass kiểm tra' : 'CÓ $_fail KIỂM TRA HỎNG ($_pass đạt)');
   exit(_fail == 0 ? 0 : 1);

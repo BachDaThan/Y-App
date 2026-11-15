@@ -247,6 +247,13 @@ Future<void> main() async {
     check(hubFileName(patch(m)) == 'thu.yui', 'hubFileName ổn định');
   }
 
+  {
+    final m = modelFor(fakeYui());
+    check(hubArchWarning(m) == null, 'hubArchWarning: arch đúng dạng thì không cảnh báo');
+    check(hubArchWarning(patch(m, archId: 'lạ-hoắc')) != null && hubArchWarning(patch(m, archId: 'gpt-d64')) != null, 'hubArchWarning: arch lạ thì cảnh báo');
+    check(hubArchWarning(patch(m, archId: 'x' * 200))!.length < 200, 'hubArchWarning: cắt arch_id dài khi hiển thị');
+  }
+
   final v3 = fakeYui();
   final v2 = fakeYui(ver: 2);
   final m3 = modelFor(v3);
