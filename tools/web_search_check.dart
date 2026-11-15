@@ -114,6 +114,19 @@ Future<void> main() async {
     check(blocked, 'parseDdg nhận ra trang xác minh');
     check(parseDdg('<html>không có gì</html>').isEmpty, 'parseDdg trang trống');
   }
+  // ===== thẻ định dạng giữa từ (lỗi "Th ủ đô" do DuckDuckGo tô đậm) =====
+  {
+    check(cleanText('Th<b>ủ</b> đô') == 'Thủ đô', 'cleanText: <b> giữa từ không chèn dấu cách');
+    check(cleanText('<B>Thủ</B> <strong>đô</strong> Việt<em> </em>Nam') == 'Thủ đô Việt Nam', 'cleanText: không phân biệt hoa/thường, strong/em');
+    check(cleanText('x<span class="y">z</span>') == 'xz' && cleanText('a<abbr title="t">bc</abbr>d') == 'abcd' && cleanText('a<a href="u">b</a>c') == 'abc' && cleanText('ab<wbr>cd') == 'abcd', 'cleanText: span/abbr/a/wbr là thẻ chữ');
+    check(cleanText('a<br>b') == 'a b' && cleanText('a<br/>b') == 'a b' && cleanText('<p>a</p><p>b</p>') == 'a b' && cleanText('<li>a</li><li>b</li>') == 'a b', 'cleanText: <br>, <p>, <li> vẫn ngăn cách bằng dấu cách (không bị nhầm với <b>)');
+    check(cleanText('a<foo>b') == 'a b' && cleanText('a<s>b</s>c<script>d</script>e') == 'abc d e', 'cleanText: thẻ lạ/khối thành dấu cách; <s> là thẻ chữ, <script> không');
+    check(cleanText('a &lt;b&gt; c') == 'a <b> c' && cleanText('1 < 2 và 3 > 2') == '1 < 2 và 3 > 2', 'cleanText: thực thể đã escape và dấu so sánh trần giữ nguyên chữ');
+    check(cleanText('x < y và y > z; a<5 và b>3') == 'x < y và y > z; a<5 và b>3', 'cleanText: dấu < không đi liền chữ cái không bị coi là thẻ');
+    check(cleanText('a<!-- ghi chú -->b<?xml v?>c') == 'a b c', 'cleanText: chú thích HTML và <?…> bị gỡ');
+    final d = parseDdg('<a class="result__a" href="https://vi.example.org/x">Th<b>ủ</b> đô Việt Nam</a><a class="result__snippet" href="x"><b>Thủ</b> đô <b>Việt</b> Nam hiện nay là Hà N<b>ộ</b>i.</a>');
+    check(d.length == 1 && d[0].title == 'Thủ đô Việt Nam' && d[0].snippet == 'Thủ đô Việt Nam hiện nay là Hà Nội.', 'parseDdg: tô đậm giữa từ không làm vỡ chữ (${d.isEmpty ? '' : d[0].snippet})');
+  }
   // ===== định dạng =====
   {
     check(cleanText('<p>A &amp; B&nbsp;&#8211; &#x4e2d; &bogus; &#99999999;</p>') == 'A & B – 中 &bogus; &#99999999;', 'cleanText bỏ thẻ, giải mã thực thể, giữ nguyên thực thể lạ/sai');
