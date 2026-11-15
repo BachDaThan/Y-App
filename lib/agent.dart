@@ -13,7 +13,11 @@ import 'services/web_search.dart';
 
 /// Độ dài tối đa kết quả công cụ đưa lại cho model. Phải <= TOOL_RESULT_CHARS lúc tạo data (mặc định 300),
 /// và với model ngữ cảnh 128 token thì để 120 cho vừa. Đổi ở đây thì đổi cả TOOL_RESULT_CHARS khi chạy make_data.
-const int kToolResultChars = 120;
+const int kToolResultChars = 120; // mặc định (ngữ cảnh 128); với model ngữ cảnh lớn hơn dùng toolResultCharsForCtx
+
+/// Độ dài tối đa kết quả công cụ đưa lại cho model. PHẢI khớp TOOL_RESULT_CHARS lúc tạo data huấn luyện
+/// (Ô1 notebook Kaggle: 120 nếu ctx ≤ 128, ngược lại 300) để model gặp lúc chạy đúng kiểu kết quả đã học.
+int toolResultCharsForCtx(int ctx) => ctx <= 128 ? 120 : 300;
 
 class AgentCall {
   final String name;
@@ -99,7 +103,7 @@ class AgentTools {
     } catch (e) {
       out = 'lỗi: ${'$e'.replaceFirst('Exception: ', '').replaceFirst('FormatException: ', '')}';
     }
-    out = _cutChars(sanitize(out), kToolResultChars);
+    out = _cutChars(sanitize(out), resultChars);
     return out.isEmpty ? '(trống)' : out;
   }
 
@@ -117,10 +121,13 @@ class AgentTools {
   /// Bộ tìm web nhiều tầng do AppState đặt theo Cài đặt. null = chỉ Wikipedia (hành vi cũ).
   static WebSearch? web;
 
+  /// Độ dài tối đa kết quả công cụ; AppState đặt theo ngữ cảnh của model đang nạp (toolResultCharsForCtx).
+  static int resultChars = kToolResultChars;
+
   static Future<String> search(String q) async {
     final w = web;
     if (w == null) return _searchWikipedia(q);
-    return w.search(q, chars: kToolResultChars);
+    return w.search(q, chars: resultChars);
   }
 
   static Future<String> _searchWikipedia(String q) async {
@@ -137,7 +144,7 @@ class AgentTools {
       'prop': 'extracts',
       'exintro': '1',
       'explaintext': '1',
-      'exchars': '${math.max(200, kToolResultChars * 2)}',
+      'exchars': '${math.max(200, resultChars * 2)}',
     });
     final c = HttpClient()..connectionTimeout = const Duration(seconds: 8);
     try {

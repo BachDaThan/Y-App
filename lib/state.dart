@@ -505,6 +505,7 @@ class AppState extends ChangeNotifier {
         await engine.setThreads(settings.threads);
       } catch (_) {}
       final info = await engine.load(entry.path);
+      AgentTools.resultChars = toolResultCharsForCtx(entry.head?.ctx ?? 128); // khớp độ dài kết quả công cụ lúc huấn luyện
       loadedModel = name;
       modelInfo = info;
       settings.activeModel = name;
