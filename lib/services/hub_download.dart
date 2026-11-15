@@ -174,6 +174,14 @@ final RegExp _reArch = RegExp(r'^amoe-d(\d+)-l(\d+)-h(\d+)-e(\d+)-s(\d+)-f(\d+)$
   return (d: int.parse(m[1]!), l: int.parse(m[2]!), h: int.parse(m[3]!), e: int.parse(m[4]!));
 }
 
+/// Cảnh báo (tiếng Việt) khi cấu trúc model trong manifest lạ với app (không đúng dạng amoe-d…-l…-h…-e…-s…-f…); null nếu bình thường.
+/// Chỉ để hiển thị TRƯỚC khi tải: sau khi tải, [checkHeaderAgainstManifest] mới là kiểm tra thật trên file.
+String? hubArchWarning(HubModel m) {
+  if (parseArchId(m.archId) != null) return null;
+  final shown = m.archId.length > 40 ? '${m.archId.substring(0, 40)}…' : m.archId;
+  return 'Cấu trúc "$shown" không đúng dạng app biết (amoe-…), có thể không nạp được.';
+}
+
 /// null nếu cấu hình thật trong file khớp mục manifest; ngược lại là lý do (tiếng Việt).
 String? checkHeaderAgainstManifest(HubModel m, YuiHeader h) {
   if (h.ver != m.yuiVer) return 'phiên bản .yui trong file (${h.ver}) khác manifest (${m.yuiVer})';

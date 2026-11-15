@@ -35,6 +35,40 @@ class HubSource {
   }
 }
 
+/// Đọc danh sách nguồn do người dùng thêm. Mỗi dòng: "Tên = https://…/manifest.json" hoặc chỉ link (tên lấy từ tên miền); dòng bắt đầu bằng # là ghi chú.
+/// Chỉ nhận https, không kèm tài khoản/mật khẩu; bỏ trùng (kể cả trùng nguồn mặc định); tối đa [max] nguồn thêm. Dòng sai được báo trong `problems`.
+({List<HubSource> sources, List<String> problems}) parseHubSources(String text, {int max = 8}) {
+  final out = <HubSource>[];
+  final bad = <String>[];
+  final seen = <String>{kHubOfficialUrl};
+  for (final raw in text.split('\n')) {
+    final line = raw.trim();
+    if (line.isEmpty || line.startsWith('#')) continue;
+    var name = '';
+    var url = line;
+    final i = line.indexOf('=');
+    if (!line.toLowerCase().startsWith('http') && i > 0) {
+      name = _clean(line.substring(0, i));
+      url = line.substring(i + 1).trim();
+    }
+    if (name.length > 40) name = name.substring(0, 40);
+    final src = HubSource(name.isEmpty ? (Uri.tryParse(url)?.host ?? 'nguồn') : name, url);
+    final p = src.problem;
+    final shown = line.length > 40 ? '${line.substring(0, 40)}…' : line;
+    if (p != null) {
+      bad.add('$shown: $p');
+      continue;
+    }
+    if (!seen.add(url)) continue;
+    if (out.length >= max) {
+      bad.add('chỉ nhận tối đa $max nguồn thêm');
+      break;
+    }
+    out.add(src);
+  }
+  return (sources: out, problems: bad);
+}
+
 /// Nguồn mặc định (kho model của chủ app). Người dùng thêm nguồn khác ở phần cài đặt (làm ở P2-6).
 const List<HubSource> kDefaultHubSources = [HubSource('Yui-Models', kHubOfficialUrl)];
 
