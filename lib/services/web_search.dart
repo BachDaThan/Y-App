@@ -119,7 +119,14 @@ bool isPublicAddress(InternetAddress a) {
 Future<List<InternetAddress>> defaultResolve(String host) => InternetAddress.lookup(host);
 
 // ---------------------------------------------------------------- định dạng
-final RegExp _tagRe = RegExp(r'<[^>]+>', dotAll: true);
+// Chỉ coi là thẻ khi '<' đi liền chữ cái, '/', '!' hoặc '?': chữ như "1 < 2 và 3 > 2" (Wikipedia dạng văn bản thuần) không bị nuốt mất.
+final RegExp _tagRe = RegExp(r'<!--.*?-->|<[/!?]?[A-Za-z][^>]*>|<[!?][^>]*>', dotAll: true);
+// Thẻ định dạng CHỮ nằm giữa từ (vd DuckDuckGo tô đậm "Th<b>ủ</b> đô"): bỏ đi KHÔNG chèn dấu cách, nếu không sẽ thành "Th ủ đô".
+// Thẻ khối/xuống dòng (<br>, <p>, <li>…) và thẻ lạ vẫn được thay bằng dấu cách để các từ không dính vào nhau.
+final RegExp _inlineTagRe = RegExp(
+    r'</?(?:b|strong|i|em|u|mark|span|a|abbr|cite|code|font|small|big|sub|sup|s|strike|wbr|bdi|bdo|q|dfn|kbd|samp|var|time)\b[^>]*>',
+    caseSensitive: false,
+    dotAll: true);
 final RegExp _wsRe = RegExp(r'\s+');
 const Map<String, String> _ents = {'amp': '&', 'lt': '<', 'gt': '>', 'quot': '"', 'apos': "'", 'nbsp': ' ', 'ndash': '–', 'mdash': '—', 'hellip': '…', 'laquo': '«', 'raquo': '»'};
 
@@ -136,7 +143,7 @@ String htmlUnescape(String s) => s.replaceAllMapped(RegExp(r'&(#x[0-9a-fA-F]+|#\
       return _ents[e] ?? m[0]!;
     });
 
-String cleanText(Object? s) => htmlUnescape('${s ?? ''}'.replaceAll(_tagRe, ' ')).replaceAll(_wsRe, ' ').trim();
+String cleanText(Object? s) => htmlUnescape('${s ?? ''}'.replaceAll(_inlineTagRe, '').replaceAll(_tagRe, ' ')).replaceAll(_wsRe, ' ').trim();
 
 String domainOf(String url) {
   final h = Uri.tryParse(url)?.host ?? '';
