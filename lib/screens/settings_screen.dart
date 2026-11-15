@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:url_launcher/url_launcher.dart';
 
 import '../services/background_guard.dart';
+import '../agent.dart';
 import '../services/web_search.dart';
 import '../state.dart';
 import '../widgets/legal_gate.dart';
@@ -115,6 +116,61 @@ class _SettingsScreenState extends State<SettingsScreen> {
     }
   }
 
+  Future<void> _testWebSearch() async {
+    final ctl = TextEditingController(text: 'thủ đô của Việt Nam là gì');
+    final q = await showDialog<String>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Thử tìm web'),
+        content: TextField(
+          controller: ctl,
+          autofocus: true,
+          decoration: const InputDecoration(border: OutlineInputBorder(), labelText: 'Câu cần tra'),
+        ),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Huỷ')),
+          FilledButton(onPressed: () => Navigator.pop(ctx, ctl.text.trim()), child: const Text('Tìm')),
+        ],
+      ),
+    );
+    WidgetsBinding.instance.addPostFrameCallback((_) => ctl.dispose());
+    if (q == null || q.isEmpty || !mounted) return;
+    final t0 = DateTime.now();
+    showDialog<void>(
+      context: context,
+      barrierDismissible: false,
+      builder: (_) => const AlertDialog(
+        content: Row(children: [CircularProgressIndicator(), SizedBox(width: 16), Expanded(child: Text('Đang tìm…'))]),
+      ),
+    );
+    String out;
+    try {
+      out = await AgentTools.run('search', q); // đúng đường model gọi công cụ: đã cắt và làm sạch
+    } catch (e) {
+      out = 'lỗi: $e';
+    }
+    if (!mounted) return;
+    Navigator.of(context).pop(); // đóng hộp "Đang tìm"
+    final secs = (DateTime.now().difference(t0).inMilliseconds / 1000).toStringAsFixed(1);
+    final cool = AgentTools.web?.coolStatus() ?? const <String, int>{};
+    await showDialog<void>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Model sẽ nhận đoạn này'),
+        content: SingleChildScrollView(
+          child: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.start, children: [
+            SelectableText(out),
+            const SizedBox(height: 10),
+            Text('Mất $secs giây · ${AgentTools.web == null ? 'chỉ Wikipedia' : 'nhiều nguồn'} · tối đa ${AgentTools.resultChars} ký tự', style: const TextStyle(fontSize: 12)),
+            if (cool.isNotEmpty)
+              Text('Đang nghỉ: ${cool.entries.map((e) => '${e.key} ${e.value}s').join(', ')}', style: const TextStyle(fontSize: 12)),
+          ]),
+        ),
+        actions: [TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Đóng'))],
+      ),
+    );
+  }
+
   Future<void> _clearHistory() async {
     final ok = await showDialog<bool>(
       context: context,
@@ -216,6 +272,12 @@ class _SettingsScreenState extends State<SettingsScreen> {
           subtitle: Text(_webCfgSummary()),
           enabled: s.webMulti,
           onTap: _editWebCfg,
+        ),
+        ListTile(
+          leading: const Icon(Icons.travel_explore),
+          title: const Text('Thử tìm web'),
+          subtitle: const Text('Chạy công cụ tìm web ngay trên máy này, không cần model: xem đúng đoạn model sẽ nhận, để kiểm key/DuckDuckGo/SearXNG.'),
+          onTap: _testWebSearch,
         ),
         const Padding(
           padding: EdgeInsets.fromLTRB(16, 0, 16, 8),
