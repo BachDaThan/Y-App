@@ -188,7 +188,7 @@ class ModelsScreen extends StatelessWidget {
               if (list.isEmpty)
                 const Padding(
                   padding: EdgeInsets.all(16),
-                  child: Text('Chưa có model nào. Bấm "Nhập file .yui" để chọn file từ máy, hoặc tải từ link (biểu tượng đám mây).'),
+                  child: Text('Chưa có model nào. Bấm "Nhập file .yui" để chọn file từ máy, tải từ link (biểu tượng đám mây), hoặc vào tab Kho để chọn model có sẵn.'),
                 ),
               for (final m in list)
                 Card(
