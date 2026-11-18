@@ -14,14 +14,14 @@ Chat history, settings, model list and downloaded models. If you use the knowled
 - Update check/download: requests to GitHub (api.github.com, github.com); GitHub sees your IP address and basic device information under its own policy.
 - Model download: to the address you enter (e.g. Hugging Face). If you enter a token it is sent only with that download request to that address.
 - `search` tool: search keywords are sent to Wikipedia (vi.wikipedia.org) together with your IP address.
-- Optional extensions (only if you configure them): keywords go to the providers whose keys you entered (Tavily, Exa, Linkup, Firecrawl, Brave, Google), to DuckDuckGo/Bing/Brave/Google (reading result pages with your IP), to public SearXNG instances you list, and data you send to MCP servers you connect. These parties have their own policies.
+- Optional extensions (OFF by default; they run only if you turn on the multi-source web search switch or enter keys): keywords go to the providers whose keys you entered (Tavily, Exa, Linkup, Firecrawl, Brave, Google), to DuckDuckGo/Bing/Brave/Google (reading result pages with your IP), to public SearXNG instances you list, and data you send to MCP servers you connect. These parties have their own policies.
 - The developer does not receive a copy of this data. Some of these servers are located abroad, so data may be processed outside Vietnam.
 
 ## 4. Purposes and legal basis
 Data is processed on your device so the App can answer, recall history, run tools and update. Sending data off-device (section 3) happens through your actions or configuration and relies on your consent.
 
 ## 5. Your rights
-Because data lives on your device you can view, edit, export (copy the folder), delete or stop using it at any time, and withdraw consent. Under Vietnam's Decree 13/2023/NĐ-CP on personal data protection (and equivalents such as the GDPR if you are in the EU/EEA) you may also request access, correction, erasure, restriction and lodge complaints. For data the developer does not hold, contact the relevant third party in section 3.
+Because data lives on your device you can view, edit, export (copy the folder), delete or stop using it at any time, and withdraw consent. Under Vietnam's personal data protection law (Law No. 91/2025/QH15, effective 1 January 2026, which replaced Decree 13/2023/NĐ-CP, and its implementing decrees; this template has not been reviewed by a lawyer) (and equivalents such as the GDPR if you are in the EU/EEA) you may also request access, correction, erasure, restriction and lodge complaints. For data the developer does not hold, contact the relevant third party in section 3.
 
 ## 6. Children
 The App is for people aged 16 and over. Under-16s need parent or guardian consent. The developer does not knowingly collect children's data.

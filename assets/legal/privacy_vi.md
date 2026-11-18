@@ -19,7 +19,7 @@ Phiên bản 2026-10. Cập nhật lần cuối: 31/10/2026. BẢN MẪU: cần 
 - Kiểm tra/tải cập nhật: gửi yêu cầu tới GitHub (api.github.com, github.com). GitHub nhìn thấy địa chỉ IP và thông tin thiết bị cơ bản theo chính sách của GitHub.
 - Tải model: tới địa chỉ bạn nhập (ví dụ Hugging Face). Nếu bạn nhập token, token chỉ được gửi kèm yêu cầu tải đó tới địa chỉ ấy.
 - Công cụ tra cứu `search`: từ khoá tìm kiếm do model/bạn tạo được gửi tới Wikipedia (vi.wikipedia.org). Kèm theo là địa chỉ IP của bạn.
-- Tính năng mở rộng (chỉ khi bạn cấu hình): từ khoá tìm kiếm gửi tới nhà cung cấp mà bạn đã nhập khoá (Tavily, Exa, Linkup, Firecrawl, Brave, Google), tới DuckDuckGo/Bing/Brave/Google (đọc trang kết quả bằng IP của bạn), tới SearXNG công cộng bạn liệt kê, và dữ liệu bạn gửi tới máy chủ MCP bạn kết nối. Các bên này có chính sách riêng.
+- Tính năng mở rộng (MẶC ĐỊNH TẮT; chỉ chạy khi bạn tự bật công tắc tìm web nhiều nguồn hoặc nhập khoá): từ khoá tìm kiếm gửi tới nhà cung cấp mà bạn đã nhập khoá (Tavily, Exa, Linkup, Firecrawl, Brave, Google), tới DuckDuckGo/Bing/Brave/Google (đọc trang kết quả bằng IP của bạn), tới SearXNG công cộng bạn liệt kê, và dữ liệu bạn gửi tới máy chủ MCP bạn kết nối. Các bên này có chính sách riêng.
 - Nhà phát triển không nhận bản sao của những dữ liệu trên.
 - Một số máy chủ nêu trên đặt ở nước ngoài, nên dữ liệu có thể được xử lý ngoài lãnh thổ Việt Nam.
 
@@ -27,7 +27,7 @@ Phiên bản 2026-10. Cập nhật lần cuối: 31/10/2026. BẢN MẪU: cần 
 Dữ liệu được xử lý trên máy bạn để Ứng dụng trả lời, tìm lại lịch sử, chạy công cụ và cập nhật. Việc gửi dữ liệu ra ngoài ở mục 3 diễn ra theo hành động hoặc cấu hình của bạn và dựa trên sự đồng ý của bạn.
 
 ## 5. Quyền của bạn
-Vì dữ liệu nằm trên thiết bị của bạn, bạn có thể xem, sửa, xuất (chép thư mục), xoá hoặc ngừng dùng bất cứ lúc nào. Bạn có quyền rút lại đồng ý. Theo Nghị định 13/2023/NĐ-CP về bảo vệ dữ liệu cá nhân (và quy định tương đương như GDPR nếu bạn ở EU/EEA) bạn còn có các quyền yêu cầu truy cập, chỉnh sửa, xoá, hạn chế xử lý và khiếu nại. Với dữ liệu nhà phát triển không nắm giữ, hãy liên hệ bên thứ ba liên quan ở mục 3.
+Vì dữ liệu nằm trên thiết bị của bạn, bạn có thể xem, sửa, xuất (chép thư mục), xoá hoặc ngừng dùng bất cứ lúc nào. Bạn có quyền rút lại đồng ý. Theo pháp luật Việt Nam về bảo vệ dữ liệu cá nhân (Luật Bảo vệ dữ liệu cá nhân số 91/2025/QH15, có hiệu lực từ 01/01/2026, thay thế Nghị định 13/2023/NĐ-CP, cùng các văn bản hướng dẫn; bản mẫu này chưa được luật sư rà soát) (và quy định tương đương như GDPR nếu bạn ở EU/EEA) bạn còn có các quyền yêu cầu truy cập, chỉnh sửa, xoá, hạn chế xử lý và khiếu nại. Với dữ liệu nhà phát triển không nắm giữ, hãy liên hệ bên thứ ba liên quan ở mục 3.
 
 ## 6. Trẻ em
 Ứng dụng dành cho người từ đủ 16 tuổi. Người dưới 16 tuổi cần cha mẹ hoặc người giám hộ đồng ý. Nhà phát triển không cố ý thu thập dữ liệu của trẻ em.
