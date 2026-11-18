@@ -4,7 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
-const String kLegalVersion = '2026-10';
+const String kLegalVersion = '2026-11';
 const _kKey = 'legal_accepted_version';
 
 class LegalGate extends StatefulWidget {
