@@ -15,8 +15,8 @@ Tôi (người soạn) KHÔNG phải luật sư; các văn bản trong `assets/l
 - [ ] Xếp hạng độ tuổi: nội dung do AI sinh ra là nội dung người dùng tạo — xem chính sách "AI-generated content" của Google Play (cần cách báo cáo nội dung xấu; nếu app chỉ chạy model cục bộ do người dùng tự nạp, cần giải thích rõ trong hồ sơ).
 
 ## Việt Nam (nếu bạn là người/tổ chức ở Việt Nam hoặc phục vụ người dùng Việt Nam)
-- [ ] Nghị định 13/2023/NĐ-CP về bảo vệ dữ liệu cá nhân: xem có phải lập hồ sơ đánh giá tác động xử lý dữ liệu cá nhân hay thông báo cơ quan chức năng không. Phần lớn xử lý của Yui diễn ra trên thiết bị người dùng nên rủi ro thấp, nhưng cần luật sư xác nhận.
-- [ ] Quy định về trẻ em: văn bản đặt ngưỡng 16 tuổi + đồng ý của cha mẹ; xác nhận với luật sư.
+- [ ] Luật Bảo vệ dữ liệu cá nhân 91/2025/QH15 (hiệu lực 01/01/2026, thay Nghị định 13/2023/NĐ-CP), Nghị định 356/2025/NĐ-CP và Nghị định 330/2026/NĐ-CP (xử phạt, hiệu lực 19/08/2026): xem có phải lập hồ sơ đánh giá tác động xử lý dữ liệu cá nhân hay thông báo cơ quan chức năng không. Chưa đối chiếu từng điều; xem Adaptive-MoE/docs/LEGAL_REGISTER.md. Phần lớn xử lý của Yui diễn ra trên thiết bị người dùng nên rủi ro thấp, nhưng cần luật sư xác nhận.
+- [ ] Quy định về trẻ em: văn bản đặt ngưỡng 16 tuổi + đồng ý của cha mẹ theo khung cũ (Nghị định 13/2023); khung mới (Luật 91/2025, NĐ 330/2026 có nội dung về trẻ từ đủ 7 tuổi) cần xác nhận với luật sư.
 
 ## EU / nơi khác
 - [ ] Nếu có người dùng ở EU: GDPR (Yui không thu thập về máy chủ nên nhẹ, nhưng vẫn cần chính sách rõ ràng và đại diện/DPO nếu luật yêu cầu). Quy định AI của EU (AI Act): đánh giá xem ứng dụng thuộc nhóm nghĩa vụ nào, nhất là minh bạch với nội dung AI.
