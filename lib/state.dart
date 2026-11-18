@@ -335,7 +335,7 @@ class Settings extends ChangeNotifier {
   bool smooth = true; // nhả chữ đều theo khung hình
   bool hubOn = false; // Kho model (P2): MẶC ĐỊNH TẮT, app không nối mạng tới nguồn nào cho tới khi người dùng bật
   String hubExtra = ''; // nguồn Kho do người dùng thêm, mỗi dòng 'Tên = https://…/manifest.json' (xem parseHubSources)
-  bool webMulti = true; // công cụ search tìm nhiều nguồn (API key -> DuckDuckGo -> SearXNG -> Wikipedia); tắt = chỉ Wikipedia
+  bool webMulti = false; // công cụ search tìm nhiều nguồn (API key -> DuckDuckGo -> SearXNG -> Wikipedia); tắt = chỉ Wikipedia. MẶC ĐỊNH TẮT: bật là gửi từ khoá + IP của bạn tới bên thứ ba (xem chính sách quyền riêng tư)
   String webCfg = ''; // key + SearXNG người dùng nhập, mỗi dòng 'tên=giá trị' (xem WebConfig.parse)
   bool useTools = true; // cho model dùng công cụ calc/time/search (chỉ có tác dụng với model đã học cú pháp <tool>)
   String activeModel = '';
@@ -359,7 +359,7 @@ class Settings extends ChangeNotifier {
     s.spec = p.getInt('spec') ?? 4;
     s.smooth = p.getBool('smooth') ?? true;
     s.useTools = p.getBool('tools') ?? true;
-    s.webMulti = p.getBool('webMulti') ?? true;
+    s.webMulti = p.getBool('webMulti') ?? false;
     s.hubOn = p.getBool('hubOn') ?? false;
     s.hubExtra = p.getString('hubExtra') ?? '';
     s.webCfg = p.getString('webCfg') ?? '';
