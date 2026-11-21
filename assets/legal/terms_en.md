@@ -1,6 +1,6 @@
 # Yui Terms of Use
 
-Version 2026-10. Last updated: 31 Oct 2026. TEMPLATE: must be reviewed by a qualified lawyer before official release.
+Version 2026-11-21. Last updated: 21 Nov 2026. TEMPLATE: must be reviewed by a qualified lawyer before official release.
 
 ## 1. Acceptance
 By installing or using Yui (the "App") you agree to these Terms and the Privacy Policy. If you do not agree, do not use the App.
@@ -51,5 +51,13 @@ These Terms are governed by the laws of Vietnam, without removing mandatory cons
 ## 15. Changes
 For material changes the App will ask you to accept again. Continuing to use the App after accepting means you accept the new version.
 
-## 16. Contact
+## 16. Experimental features and scope of disclaimer
+- Advanced AI features (idle-time assistant, voice / voice cloning, overlays over other apps or games, live streaming, character / knowledge packs) exist **only if added to the App** and are **optional and OFF by default**. Descriptions in documents are not a promise that a feature exists.
+- **To the extent permitted by law**, the developer is not liable for: actions or content produced or suggested by AI (even if you confirmed them); third-party content you feed in (comments, videos, documents); your breach of third parties' terms, copyright or privacy; models, packs or skills you load yourself; what you publish with the App; or any game/platform account being suspended.
+- **Voice:** use only your own voice or a voice with the owner's consent; never to impersonate or deceive; do not remove a model's watermark; label AI-generated audio when publishing. <!-- ranh-giới-ok: terms prohibit impersonation -->
+- **Games and other apps:** many games forbid advantage tools and treat overlays as violations; the default is "Clean play" mode; enabling advantage features is your own risk.
+- **Live streaming:** you follow the platform's terms and are responsible for audience comments/data and for what you broadcast.
+- This section does not limit rights that the law gives you or third parties.
+
+## 17. Contact
 [truongtieuthan@gmail.com] · [ https://github.com/BachDaThan/Y-App]

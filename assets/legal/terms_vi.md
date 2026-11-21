@@ -1,6 +1,6 @@
 # Điều khoản sử dụng Yui
 
-Phiên bản 2026-10. Cập nhật lần cuối: 31/10/2026. BẢN MẪU: cần được luật sư rà soát trước khi phát hành chính thức.
+Phiên bản 2026-11-21. Cập nhật lần cuối: 21/11/2026. BẢN MẪU: cần được luật sư rà soát trước khi phát hành chính thức.
 
 ## 1. Chấp nhận điều khoản
 Khi cài đặt hoặc dùng Yui ("Ứng dụng"), bạn đồng ý với Điều khoản này và Chính sách quyền riêng tư. Nếu không đồng ý, vui lòng không dùng Ứng dụng.
@@ -57,5 +57,13 @@ Bạn có thể ngừng dùng và gỡ Ứng dụng bất cứ lúc nào. Nhà p
 ## 15. Thay đổi điều khoản
 Khi có thay đổi quan trọng, Ứng dụng sẽ hiện lại điều khoản để bạn đồng ý lại. Tiếp tục dùng sau khi đồng ý nghĩa là chấp nhận bản mới.
 
-## 16. Liên hệ
+## 16. Tính năng thử nghiệm và phạm vi miễn trừ
+- Các tính năng AI nâng cao (trợ lý chạy khi máy rảnh, giọng nói/nhân bản giọng, lớp phủ khi dùng ứng dụng/game, phát trực tiếp, gói nhân vật/tri thức) chỉ có **khi được thêm vào Ứng dụng** và đều là **tuỳ chọn, mặc định TẮT**. Mô tả trong tài liệu không phải cam kết tính năng đó tồn tại.
+- **Trong phạm vi pháp luật cho phép**, nhà phát triển không chịu trách nhiệm về: hành động hay nội dung do AI tạo ra hoặc đề xuất (kể cả khi bạn đã xác nhận); nội dung của bên thứ ba bạn đưa vào (bình luận, video, tài liệu); việc bạn vi phạm điều khoản/bản quyền/quyền riêng tư của người khác; mô hình, gói, kỹ năng bạn tự nạp; những gì bạn công khai bằng Ứng dụng; hay việc tài khoản game/nền tảng bị khoá.
+- **Giọng nói:** chỉ dùng giọng của bạn hoặc giọng có sự đồng ý của chủ giọng; không dùng để mạo danh hay lừa đảo; không gỡ dấu nhận biết của mô hình; nên ghi rõ nội dung do AI tạo khi phát công khai. <!-- ranh-giới-ok: điều khoản cấm mạo danh -->
+- **Game và ứng dụng khác:** nhiều trò chơi cấm công cụ cho lợi thế và coi lớp phủ là vi phạm; mặc định là chế độ "Chơi sạch"; bật trợ giúp có lợi thế là rủi ro của riêng bạn.
+- **Phát trực tiếp:** bạn tuân thủ điều khoản nền tảng và chịu trách nhiệm về bình luận/dữ liệu của khán giả và về những gì phát ra.
+- Phần này không hạn chế quyền mà pháp luật bắt buộc dành cho bạn hay người thứ ba.
+
+## 17. Liên hệ
 [truongtieuthan@gmail.com] · [ https://github.com/BachDaThan/Y-App]
