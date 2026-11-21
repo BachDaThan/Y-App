@@ -29,3 +29,7 @@ Tôi (người soạn) KHÔNG phải luật sư; các văn bản trong `assets/l
 
 ## Tính năng cần cân nhắc rủi ro điều khoản của bên thứ ba
 - [ ] Đọc HTML Google/Bing/Brave/DuckDuckGo không key: trái điều khoản của họ (đã để Google TẮT mặc định, có giữ nhịp). Khi phát hành rộng rãi nên mặc định chỉ dùng API chính thức/SearXNG/Wikipedia và để các tầng này là tuỳ chọn người dùng tự bật.
+
+## Cập nhật 2026-11-21 (đợt 9)
+- [ ] Đã thêm mục 17 vào `assets/legal/terms_vi.md`/`terms_en.md` (tính năng thử nghiệm + phạm vi miễn trừ) và tăng `kLegalVersion` thành `2026-11-21` (mọi người dùng sẽ phải đồng ý lại). Văn bản viết "trong phạm vi pháp luật cho phép": **không có điều khoản nào miễn được mọi trách nhiệm trong mọi trường hợp**; luật sư cần rà (sổ pháp lý F9, F15, F23–F28).
+- [ ] Khi thêm giọng nói/lớp phủ/phát trực tiếp vào app: sửa Chính sách quyền riêng tư TRƯỚC (âm thanh, ảnh màn hình, dữ liệu khán giả), như mục "Nếu thêm analytics…" ở trên.
